@@ -23,7 +23,7 @@ interface FolderData { id: string; name: string; files: FileData[]; }
 interface Message { role: 'user' | 'bot'; content: string; ts: number; }
 
 // ── Constants ─────────────────────────────────────────────
-const MODEL = 'gemini-1.5-flash';
+const MODEL = 'gemini-1.5-flash-latest';
 const DEV_PASSWORD = 'gwangdeok2026'; // 관리자 비밀번호 (변경 가능)
 const LS = {
   folders:  'gd2-folders',
