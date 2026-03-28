@@ -71,7 +71,7 @@ const mkComponents = (dark: boolean) => ({
   strong: ({ children }: any) => <strong className="font-semibold">{children}</strong>,
   em:   ({ children }: any) => <em className="italic">{children}</em>,
   blockquote: ({ children }: any) => (
-    <blockquote className={`border-l-4 pl-3 my-2 italic ${dark ? 'border-blue-500 text-gray-400' : 'border-blue-400 text-gray-500'}`}>{children}</blockquote>
+    <blockquote className={`border-l-4 pl-3 my-2 italic ${dark ? 'border-zinc-500 text-zinc-400' : 'border-zinc-400 text-zinc-500'}`}>{children}</blockquote>
   ),
   // pre 태그를 투명하게 처리하고 code 컴포넌트에서 블록/인라인 구분
   pre:  ({ children }: any) => <>{children}</>,
@@ -79,13 +79,13 @@ const mkComponents = (dark: boolean) => ({
     const content = String(children).replace(/\n$/, '');
     const isBlock = content.includes('\n') || Boolean(className);
     return isBlock
-      ? <pre className={`p-3 rounded-xl text-xs font-mono overflow-x-auto my-2 ${dark ? 'bg-gray-900 text-gray-200' : 'bg-gray-50 text-gray-800'}`}><code>{content}</code></pre>
-      : <code className={`px-1.5 py-0.5 rounded text-xs font-mono ${dark ? 'bg-gray-700 text-blue-300' : 'bg-blue-50 text-blue-700'}`}>{children}</code>;
+      ? <pre className={`p-3 rounded-xl text-xs font-mono overflow-x-auto my-2 ${dark ? 'bg-zinc-900 text-zinc-200' : 'bg-zinc-50 text-zinc-800'}`}><code>{content}</code></pre>
+      : <code className={`px-1.5 py-0.5 rounded text-xs font-mono ${dark ? 'bg-zinc-700 text-zinc-300' : 'bg-zinc-100 text-zinc-700'}`}>{children}</code>;
   },
-  hr:    () => <hr className={`my-3 ${dark ? 'border-gray-700' : 'border-gray-200'}`} />,
+  hr:    () => <hr className={`my-3 ${dark ? 'border-zinc-700' : 'border-zinc-200'}`} />,
   table: ({ children }: any) => <div className="overflow-x-auto my-2"><table className="text-xs border-collapse w-full">{children}</table></div>,
-  th:    ({ children }: any) => <th className={`border px-2 py-1 text-left font-semibold ${dark ? 'border-gray-600 bg-gray-700' : 'border-gray-200 bg-gray-50'}`}>{children}</th>,
-  td:    ({ children }: any) => <td className={`border px-2 py-1 ${dark ? 'border-gray-700' : 'border-gray-100'}`}>{children}</td>,
+  th:    ({ children }: any) => <th className={`border px-2 py-1 text-left font-semibold ${dark ? 'border-zinc-600 bg-zinc-700' : 'border-zinc-200 bg-zinc-50'}`}>{children}</th>,
+  td:    ({ children }: any) => <td className={`border px-2 py-1 ${dark ? 'border-zinc-700' : 'border-zinc-100'}`}>{children}</td>,
 });
 
 // ── App ───────────────────────────────────────────────────
@@ -143,10 +143,10 @@ export default function App() {
 
   // ── Quick action cards ────────────────────────────────────
   const quickCards = useMemo(() => [
-    { icon: Sparkles,      color: 'text-blue-500',    bg: d('bg-blue-50','bg-blue-950/40'),      title: '문서 요약',  q: '현재 문서들을 간략히 요약해줘.' },
-    { icon: FileSearch,    color: 'text-emerald-500', bg: d('bg-emerald-50','bg-emerald-950/40'), title: '규정 검색',  q: '꼭 알아야 할 주요 규정을 찾아줘.' },
-    { icon: LayoutGrid,    color: 'text-violet-500',  bg: d('bg-violet-50','bg-violet-950/40'),   title: '비교 분석',  q: '문서들의 주요 차이점을 비교해줘.' },
-    { icon: MessageSquare, color: 'text-amber-500',   bg: d('bg-amber-50','bg-amber-950/40'),     title: '자유 질문',  q: '교사들이 가장 궁금해할 내용은 무엇인가요?' },
+    { icon: Sparkles,      color: 'text-zinc-500',  bg: d('bg-zinc-100','bg-zinc-700/40'), title: '문서 요약',  q: '현재 문서들을 간략히 요약해줘.' },
+    { icon: FileSearch,    color: 'text-zinc-500',  bg: d('bg-zinc-100','bg-zinc-700/40'), title: '규정 검색',  q: '꼭 알아야 할 주요 규정을 찾아줘.' },
+    { icon: LayoutGrid,    color: 'text-zinc-500',  bg: d('bg-zinc-100','bg-zinc-700/40'), title: '비교 분석',  q: '문서들의 주요 차이점을 비교해줘.' },
+    { icon: MessageSquare, color: 'text-zinc-500',  bg: d('bg-zinc-100','bg-zinc-700/40'), title: '자유 질문',  q: '교사들이 가장 궁금해할 내용은 무엇인가요?' },
   ], [dark]);
 
   // ── Persistence ───────────────────────────────────────────
@@ -521,13 +521,13 @@ ${contextText || '(업로드된 문서 없음)'}`;
   };
 
   // ── 스타일 헬퍼 ───────────────────────────────────────────
-  const bg          = d('bg-gray-50',      'bg-gray-950');
-  const text        = d('text-gray-900',   'text-gray-100');
-  const sidebar_bg  = d('bg-white',        'bg-gray-900');
-  const border_c    = d('border-gray-200', 'border-gray-800');
-  const card        = d('bg-white',        'bg-gray-800');
-  const muted       = d('text-gray-500',   'text-gray-400');
-  const hover_light = d('hover:bg-gray-100','hover:bg-gray-800');
+  const bg          = d('bg-zinc-50',      'bg-zinc-950');
+  const text        = d('text-zinc-900',   'text-zinc-100');
+  const sidebar_bg  = d('bg-white',        'bg-zinc-900');
+  const border_c    = d('border-zinc-200', 'border-zinc-800');
+  const card        = d('bg-white',        'bg-zinc-800');
+  const muted       = d('text-zinc-500',   'text-zinc-400');
+  const hover_light = d('hover:bg-zinc-100','hover:bg-zinc-800');
 
   // ─────────────────────────────────────────────────────────
   //  RENDER
@@ -544,7 +544,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
         {drag && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-blue-600/90 backdrop-blur-sm flex items-center justify-center pointer-events-none"
+            className="fixed inset-0 z-50 bg-zinc-800/90 backdrop-blur-sm flex items-center justify-center pointer-events-none"
           >
             <div className="border-4 border-dashed border-white/60 rounded-[48px] p-16 text-center text-white">
               <Upload className="w-16 h-16 mx-auto mb-4" />
@@ -582,8 +582,8 @@ ${contextText || '(업로드된 문서 없음)'}`;
           >
             <div className={`${card} px-8 py-7 rounded-3xl shadow-2xl flex flex-col items-center gap-4 max-w-xs w-full mx-4`}>
               <div className="relative">
-                <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
-                <div className="absolute inset-0 rounded-full bg-blue-500/10 animate-ping" />
+                <Loader2 className="w-10 h-10 text-zinc-500 animate-spin" />
+                <div className="absolute inset-0 rounded-full bg-zinc-500/10 animate-ping" />
               </div>
               <div className="text-center">
                 <p className="font-bold mb-1">PDF 분석 중...</p>
@@ -612,12 +612,12 @@ ${contextText || '(업로드된 문서 없음)'}`;
                 <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${d('bg-red-50','bg-red-950/40')}`}>
                   <AlertTriangle className="w-5 h-5 text-red-500" />
                 </div>
-                <p className={`text-sm leading-relaxed pt-2 ${d('text-gray-700','text-gray-300')}`}>{confirmDlg.msg}</p>
+                <p className={`text-sm leading-relaxed pt-2 ${d('text-zinc-700','text-zinc-300')}`}>{confirmDlg.msg}</p>
               </div>
               <div className="flex gap-2">
                 <button
                   onClick={() => setConfirmDlg(null)}
-                  className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-colors ${d('bg-gray-100 hover:bg-gray-200 text-gray-700','bg-gray-700 hover:bg-gray-600 text-gray-300')}`}
+                  className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-colors ${d('bg-zinc-100 hover:bg-zinc-200 text-zinc-700','bg-zinc-700 hover:bg-zinc-600 text-zinc-300')}`}
                 >취소</button>
                 <button
                   onClick={() => { confirmDlg.onConfirm(); setConfirmDlg(null); }}
@@ -650,7 +650,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
               >
                 {/* 헤더 */}
                 <div className={`flex items-center gap-3 px-5 py-4 border-b ${border_c} shrink-0`}>
-                  <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center shrink-0 shadow-md shadow-blue-500/30">
+                  <div className="w-9 h-9 bg-zinc-800 rounded-xl flex items-center justify-center shrink-0 shadow-md shadow-black/20">
                     <Folder className="w-4 h-4 text-white" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -664,7 +664,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
                           if (e.key === 'Escape') setEditingFolderName(false);
                         }}
                         onBlur={() => renameFolder(mf.id, editFolderName)}
-                        className={`w-full text-sm font-bold px-2 py-1 rounded-lg border outline-none ${d('border-blue-400 bg-blue-50','border-blue-500 bg-blue-950/30')}`}
+                        className={`w-full text-sm font-bold px-2 py-1 rounded-lg border outline-none ${d('border-zinc-400 bg-zinc-100','border-zinc-500 bg-zinc-800/30')}`}
                         aria-label="폴더 이름 수정"
                       />
                     ) : (
@@ -696,10 +696,10 @@ ${contextText || '(업로드된 문서 없음)'}`;
                     </div>
                   ) : mf.files.map(fl => (
                     <div key={fl.id}
-                      className={`flex items-start gap-3 p-3 rounded-2xl border transition-all ${d('border-gray-100 hover:border-gray-200 bg-gray-50/50','border-gray-700/50 hover:border-gray-600 bg-gray-800/30')}`}
+                      className={`flex items-start gap-3 p-3 rounded-2xl border transition-all ${d('border-zinc-100 hover:border-zinc-200 bg-zinc-50/50','border-zinc-700/50 hover:border-zinc-600 bg-zinc-800/30')}`}
                     >
-                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${d('bg-blue-50','bg-blue-950/40')}`}>
-                        <FileText className="w-4 h-4 text-blue-500" />
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${d('bg-zinc-100','bg-zinc-800/40')}`}>
+                        <FileText className="w-4 h-4 text-zinc-500" />
                       </div>
                       <div className="flex-1 min-w-0">
                         {editingFile?.id === fl.id ? (
@@ -712,7 +712,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
                               if (e.key === 'Escape') setEditingFile(null);
                             }}
                             onBlur={() => renameFile(mf.id, fl.id, editingFile.name)}
-                            className={`w-full text-sm font-medium px-2 py-0.5 rounded-lg border outline-none ${d('border-blue-400 bg-blue-50','border-blue-500 bg-blue-950/30')}`}
+                            className={`w-full text-sm font-medium px-2 py-0.5 rounded-lg border outline-none ${d('border-zinc-400 bg-zinc-100','border-zinc-500 bg-zinc-800/30')}`}
                             aria-label="파일 이름 수정"
                           />
                         ) : (
@@ -722,7 +722,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
                             title="클릭하여 이름 수정"
                             aria-label={`${fl.name} 이름 수정`}
                           >
-                            <span className={`text-sm font-medium truncate ${d('text-gray-800','text-gray-200')}`}>{fl.name}</span>
+                            <span className={`text-sm font-medium truncate ${d('text-zinc-800','text-zinc-200')}`}>{fl.name}</span>
                             <Pencil className={`w-3 h-3 shrink-0 opacity-0 group-hover:opacity-60 transition-opacity ${muted}`} />
                           </button>
                         )}
@@ -733,7 +733,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
                       <button
                         onClick={() => askConfirm(`"${fl.name}"을 삭제할까요?`, () => deleteFile(fl.id, mf.id))}
                         aria-label={`${fl.name} 삭제`}
-                        className={`p-1.5 rounded-xl shrink-0 transition-colors ${d('hover:bg-red-50 text-gray-400 hover:text-red-500','hover:bg-red-950/30 text-gray-600 hover:text-red-400')}`}
+                        className={`p-1.5 rounded-xl shrink-0 transition-colors ${d('hover:bg-red-50 text-zinc-400 hover:text-red-500','hover:bg-red-950/30 text-zinc-600 hover:text-red-400')}`}
                       ><Trash2 className="w-3.5 h-3.5" /></button>
                     </div>
                   ))}
@@ -748,7 +748,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
                       droppedFiles.current = [];
                       setTimeout(() => fileRef.current?.click(), 100);
                     }}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white transition-colors shadow-md shadow-blue-500/20"
+                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl text-sm font-semibold bg-zinc-800 hover:bg-zinc-900 text-white transition-colors shadow-md shadow-black/15"
                     aria-label="파일 추가"
                   >
                     <Plus className="w-4 h-4" />파일 추가
@@ -775,7 +775,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
               role="dialog" aria-modal="true" aria-label="폴더 선택"
             >
               <div className="flex items-center gap-3 mb-5">
-                <div className="w-10 h-10 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/30">
+                <div className="w-10 h-10 bg-zinc-800 rounded-2xl flex items-center justify-center shadow-lg shadow-black/20">
                   <Folder className="w-5 h-5 text-white" />
                 </div>
                 <div>
@@ -797,24 +797,24 @@ ${contextText || '(업로드된 문서 없음)'}`;
                     }}
                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl border text-left transition-all ${
                       f.id === folderId
-                        ? 'border-blue-500 bg-blue-50 text-blue-700'
-                        : d('border-gray-200 hover:border-blue-300 hover:bg-blue-50/50','border-gray-700 hover:border-blue-700 hover:bg-blue-950/20')
+                        ? 'border-zinc-500 bg-zinc-100 text-zinc-700'
+                        : d('border-zinc-200 hover:border-zinc-300 hover:bg-zinc-100/50','border-zinc-700 hover:border-zinc-600 hover:bg-zinc-800/20')
                     }`}
                   >
-                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${f.id === folderId ? 'bg-blue-600' : d('bg-gray-100','bg-gray-700')}`}>
-                      <Folder className={`w-4 h-4 ${f.id === folderId ? 'text-white' : 'text-gray-400'}`} />
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${f.id === folderId ? 'bg-zinc-800' : d('bg-zinc-100','bg-zinc-700')}`}>
+                      <Folder className={`w-4 h-4 ${f.id === folderId ? 'text-white' : 'text-zinc-400'}`} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold truncate">{f.name}</p>
                       <p className={`text-[10px] ${muted}`}>파일 {f.files.length}개</p>
                     </div>
-                    {f.id === folderId && <Check className="w-4 h-4 text-blue-500 shrink-0" />}
+                    {f.id === folderId && <Check className="w-4 h-4 text-zinc-500 shrink-0" />}
                   </button>
                 ))}
               </div>
               <button
                 onClick={() => { setShowFolderPicker(false); droppedFiles.current = []; }}
-                className={`w-full py-2.5 rounded-2xl text-sm font-semibold transition-colors ${d('bg-gray-100 hover:bg-gray-200 text-gray-700','bg-gray-700 hover:bg-gray-600 text-gray-300')}`}
+                className={`w-full py-2.5 rounded-2xl text-sm font-semibold transition-colors ${d('bg-zinc-100 hover:bg-zinc-200 text-zinc-700','bg-zinc-700 hover:bg-zinc-600 text-zinc-300')}`}
               >취소</button>
             </motion.div>
           </motion.div>
@@ -836,7 +836,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
               role="dialog" aria-modal="true" aria-label="관리자 인증"
             >
               <div className="flex items-center gap-3 mb-5">
-                <div className="w-10 h-10 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/30">
+                <div className="w-10 h-10 bg-zinc-800 rounded-2xl flex items-center justify-center shadow-lg shadow-black/20">
                   <Lock className="w-5 h-5 text-white" />
                 </div>
                 <div>
@@ -854,7 +854,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
                 className={`w-full px-4 py-3 rounded-2xl border outline-none text-sm mb-2 transition-colors ${
                   devPwError
                     ? 'border-red-400 bg-red-50 text-red-700'
-                    : d('border-gray-200 bg-gray-50 focus:border-blue-400 focus:bg-white','border-gray-700 bg-gray-800/50 focus:border-blue-500')
+                    : d('border-zinc-200 bg-zinc-50 focus:border-zinc-400 focus:bg-white','border-zinc-700 bg-zinc-800/50 focus:border-zinc-500')
                 }`}
               />
               {devPwError && (
@@ -864,10 +864,10 @@ ${contextText || '(업로드된 문서 없음)'}`;
               <div className="flex gap-2 mt-4">
                 <button
                   onClick={() => { setShowDevModal(false); setDevPwInput(''); setDevPwError(false); }}
-                  className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-colors ${d('bg-gray-100 hover:bg-gray-200 text-gray-700','bg-gray-700 hover:bg-gray-600 text-gray-300')}`}
+                  className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-colors ${d('bg-zinc-100 hover:bg-zinc-200 text-zinc-700','bg-zinc-700 hover:bg-zinc-600 text-zinc-300')}`}
                 >취소</button>
                 <button onClick={confirmDevPassword}
-                  className="flex-1 py-2.5 rounded-2xl text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white transition-colors shadow-md shadow-blue-500/20"
+                  className="flex-1 py-2.5 rounded-2xl text-sm font-semibold bg-zinc-800 hover:bg-zinc-900 text-white transition-colors shadow-md shadow-black/15"
                 >확인</button>
               </div>
             </motion.div>
@@ -902,7 +902,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
             {/* 헤더 */}
             <div className={`flex items-center justify-between px-4 py-4 border-b ${border_c}`}>
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center shadow-md shadow-blue-500/30">
+                <div className="w-9 h-9 bg-zinc-800 rounded-xl flex items-center justify-center shadow-md shadow-black/20">
                   <Sparkles className="w-4 h-4 text-white" />
                 </div>
                 <div>
@@ -924,7 +924,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
                   {devMode && (
                     <button onClick={() => setAddingFolder(v => !v)} aria-label="새 폴더 추가"
                       className={`p-1 rounded-lg ${hover_light} transition-colors`}>
-                      <FolderPlus className="w-4 h-4 text-blue-500" />
+                      <FolderPlus className="w-4 h-4 text-zinc-500" />
                     </button>
                   )}
                 </div>
@@ -940,10 +940,10 @@ ${contextText || '(업로드된 문서 없음)'}`;
                           onChange={e => setNewName(e.target.value)}
                           onKeyDown={e => { if (e.key === 'Enter') addFolder(); if (e.key === 'Escape') { setAddingFolder(false); setNewName(''); } }}
                           placeholder="폴더 이름..." aria-label="새 폴더 이름"
-                          className={`flex-1 text-sm px-3 py-1.5 rounded-xl border outline-none transition-colors ${d('bg-gray-50 border-gray-200 focus:border-blue-400 focus:bg-white','bg-gray-800 border-gray-700 focus:border-blue-500')}`}
+                          className={`flex-1 text-sm px-3 py-1.5 rounded-xl border outline-none transition-colors ${d('bg-zinc-50 border-zinc-200 focus:border-zinc-400 focus:bg-white','bg-zinc-800 border-zinc-700 focus:border-zinc-500')}`}
                         />
                         <button onClick={addFolder}
-                          className="px-2 py-1.5 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 transition-colors">추가</button>
+                          className="px-2 py-1.5 bg-zinc-800 text-white rounded-xl text-xs font-bold hover:bg-zinc-900 transition-colors">추가</button>
                       </div>
                     </motion.div>
                   )}
@@ -954,8 +954,8 @@ ${contextText || '(업로드된 문서 없음)'}`;
                     role="button" aria-selected={f.id === folderId}
                     className={`group flex items-center justify-between px-3 py-2.5 rounded-xl mb-1 cursor-pointer transition-all ${
                       f.id === folderId
-                        ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
-                        : d('hover:bg-gray-100 text-gray-700','hover:bg-gray-800 text-gray-300')
+                        ? 'bg-zinc-800 text-white shadow-md shadow-black/15'
+                        : d('hover:bg-zinc-100 text-zinc-700','hover:bg-zinc-800 text-zinc-300')
                     }`}
                     onClick={() => { if (renamingFolderId !== f.id) setFolderId(f.id); }}
                     onDoubleClick={e => {
@@ -979,7 +979,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
                           className={`flex-1 text-sm font-medium px-1.5 py-0.5 rounded-lg border outline-none min-w-0 ${
                             f.id === folderId
                               ? 'bg-white/20 border-white/40 text-white placeholder-white/60'
-                              : d('bg-white border-blue-400 text-gray-800','bg-gray-900 border-blue-500 text-gray-100')
+                              : d('bg-white border-zinc-400 text-zinc-800','bg-zinc-900 border-zinc-500 text-zinc-100')
                           }`}
                           aria-label="폴더 이름 수정"
                         />
@@ -988,7 +988,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
                           <span className="text-sm font-medium truncate">{f.name}</span>
                           {f.files.length > 0 && (
                             <span className={`text-[10px] shrink-0 px-1.5 py-0.5 rounded-full font-bold ${
-                              f.id === folderId ? 'bg-white/20 text-white' : d('bg-gray-100 text-gray-500','bg-gray-700 text-gray-400')
+                              f.id === folderId ? 'bg-white/20 text-white' : d('bg-zinc-100 text-zinc-500','bg-zinc-700 text-zinc-400')
                             }`}>{f.files.length}</span>
                           )}
                         </>
@@ -1021,7 +1021,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
                   {devMode && (
                     <button onClick={requestUpload} aria-label="PDF 파일 업로드"
                       className={`p-1 rounded-lg ${hover_light} transition-colors`}>
-                      <Plus className="w-4 h-4 text-blue-500" />
+                      <Plus className="w-4 h-4 text-zinc-500" />
                     </button>
                   )}
                 </div>
@@ -1040,14 +1040,14 @@ ${contextText || '(업로드된 문서 없음)'}`;
                 {(folder?.files ?? []).length === 0 ? (
                   devMode ? (
                     <button onClick={requestUpload}
-                      className={`w-full py-5 rounded-2xl border-2 border-dashed flex flex-col items-center gap-2 transition-all ${d('border-gray-200 hover:border-blue-300 hover:bg-blue-50/50 text-gray-400 hover:text-blue-500','border-gray-700 hover:border-blue-600 hover:bg-blue-950/20 text-gray-600 hover:text-blue-400')}`}
+                      className={`w-full py-5 rounded-2xl border-2 border-dashed flex flex-col items-center gap-2 transition-all ${d('border-zinc-200 hover:border-zinc-300 hover:bg-zinc-100/50 text-zinc-400 hover:text-zinc-500','border-zinc-700 hover:border-zinc-600 hover:bg-zinc-800/20 text-zinc-600 hover:text-zinc-400')}`}
                       aria-label="PDF 업로드">
                       <Upload className="w-5 h-5" />
                       <span className="text-xs font-semibold">PDF 업로드</span>
                       <span className={`text-[10px] ${muted}`}>클릭 또는 드래그</span>
                     </button>
                   ) : (
-                    <div className={`w-full py-5 rounded-2xl border-2 border-dashed flex flex-col items-center gap-2 ${d('border-gray-100 text-gray-300','border-gray-800 text-gray-700')}`}>
+                    <div className={`w-full py-5 rounded-2xl border-2 border-dashed flex flex-col items-center gap-2 ${d('border-zinc-100 text-zinc-300','border-zinc-800 text-zinc-700')}`}>
                       <Lock className="w-5 h-5" />
                       <span className="text-xs font-medium">관리자 전용</span>
                     </div>
@@ -1056,8 +1056,8 @@ ${contextText || '(업로드된 문서 없음)'}`;
                   <div className="space-y-0.5">
                     {folder.files.map(fl => (
                       <div key={fl.id}
-                        className={`group flex items-center gap-2 px-3 py-2 rounded-xl transition-colors ${d('hover:bg-gray-50','hover:bg-gray-800/50')}`}>
-                        <FileText className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                        className={`group flex items-center gap-2 px-3 py-2 rounded-xl transition-colors ${d('hover:bg-zinc-50','hover:bg-zinc-800/50')}`}>
+                        <FileText className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
                         <span className={`text-xs flex-1 truncate ${muted}`} title={fl.name}>{fl.name}</span>
                         {devMode && (
                           <button onClick={() => deleteFile(fl.id)} aria-label={`${fl.name} 삭제`}
@@ -1069,7 +1069,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
                     ))}
                     {devMode && (
                       <button onClick={requestUpload} aria-label="파일 추가"
-                        className={`w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold text-blue-500 transition-colors ${d('hover:bg-blue-50','hover:bg-blue-950/30')}`}>
+                        className={`w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold text-zinc-500 transition-colors ${d('hover:bg-zinc-100','hover:bg-zinc-800/30')}`}>
                         <Plus className="w-3.5 h-3.5" />파일 추가
                       </button>
                     )}
@@ -1087,9 +1087,9 @@ ${contextText || '(업로드된 문서 없음)'}`;
                 role="button" aria-label={dark ? '라이트 모드로 전환' : '다크 모드로 전환'}
               >
                 <span className={`text-xs font-medium ${muted}`}>{dark ? '다크 모드' : '라이트 모드'}</span>
-                <div className={`w-11 h-6 rounded-full transition-colors relative ${dark ? 'bg-blue-600' : 'bg-gray-200'}`}>
+                <div className={`w-11 h-6 rounded-full transition-colors relative ${dark ? 'bg-zinc-600' : 'bg-zinc-300'}`}>
                   <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${dark ? 'translate-x-5' : 'translate-x-0.5'} flex items-center justify-center`}>
-                    {dark ? <Moon className="w-2.5 h-2.5 text-blue-600" /> : <Sun className="w-2.5 h-2.5 text-yellow-500" />}
+                    {dark ? <Moon className="w-2.5 h-2.5 text-zinc-300" /> : <Sun className="w-2.5 h-2.5 text-yellow-500" />}
                   </span>
                 </div>
               </div>
@@ -1137,7 +1137,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
       <main className="flex-1 flex flex-col min-w-0">
 
         {/* 헤더 */}
-        <nav className={`flex items-center justify-between px-4 py-3 border-b ${border_c} ${d('bg-white','bg-gray-900')} shrink-0 no-print`}
+        <nav className={`flex items-center justify-between px-4 py-3 border-b ${border_c} ${d('bg-white','bg-zinc-900')} shrink-0 no-print`}
           aria-label="상단 메뉴">
           <div className="flex items-center gap-3">
             <button onClick={() => setSidebarOpen(v => !v)} aria-label="사이드바 열기/닫기"
@@ -1172,10 +1172,10 @@ ${contextText || '(업로드된 문서 없음)'}`;
             </button>
             <button onClick={clearChat} disabled={!messages.length}
               aria-label="대화 삭제" title="대화 삭제"
-              className={`p-2 rounded-xl disabled:opacity-30 transition-colors ${d('hover:bg-red-50 text-gray-400 hover:text-red-500 disabled:text-gray-300','hover:bg-red-950/20 text-gray-500 hover:text-red-400 disabled:text-gray-700')}`}>
+              className={`p-2 rounded-xl disabled:opacity-30 transition-colors ${d('hover:bg-red-50 text-zinc-400 hover:text-red-500 disabled:text-zinc-300','hover:bg-red-950/20 text-zinc-500 hover:text-red-400 disabled:text-zinc-700')}`}>
               <Trash2 className="w-4 h-4" />
             </button>
-            <div className={`w-px h-5 mx-1 ${d('bg-gray-200','bg-gray-700')}`} />
+            <div className={`w-px h-5 mx-1 ${d('bg-gray-200','bg-zinc-700')}`} />
             <div className="relative">
               <button onClick={shareApp} aria-label="링크 공유" title="링크 공유"
                 className={`p-2 rounded-xl ${hover_light} transition-colors`}>
@@ -1185,7 +1185,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
                 {shareOk && (
                   <motion.div
                     initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                    className="absolute top-full mt-2 right-0 bg-gray-900 text-white text-[10px] px-2.5 py-1.5 rounded-lg whitespace-nowrap shadow-lg"
+                    className="absolute top-full mt-2 right-0 bg-zinc-900 text-white text-[10px] px-2.5 py-1.5 rounded-lg whitespace-nowrap shadow-lg"
                     aria-live="polite"
                   >링크 복사됨!</motion.div>
                 )}
@@ -1199,11 +1199,11 @@ ${contextText || '(업로드된 문서 없음)'}`;
           {messages.length === 0 ? (
             <div className="max-w-2xl mx-auto mt-8 md:mt-12">
               <div className="text-center mb-8">
-                <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full mb-4 text-[10px] font-bold uppercase tracking-widest ${d('bg-blue-50 text-blue-500 border border-blue-100','bg-blue-950/40 text-blue-400 border border-blue-900/60')}`}>
+                <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full mb-4 text-[10px] font-bold uppercase tracking-widest ${d('bg-zinc-100 text-zinc-500 border border-zinc-200','bg-zinc-800/60 text-zinc-400 border border-zinc-700')}`}>
                   <Sparkles className="w-3 h-3" />AI-Powered
                 </div>
-                <h2 className={`text-3xl md:text-4xl font-light tracking-tight mb-2 ${d('text-gray-900','text-white')}`}>
-                  광덕 <span className="font-bold text-blue-600">교육 비서</span>
+                <h2 className={`text-3xl md:text-4xl font-light tracking-tight mb-2 ${d('text-zinc-900','text-white')}`}>
+                  광덕 <span className={`font-bold ${d('text-zinc-800','text-zinc-200')}`}>교육 비서</span>
                 </h2>
                 <p className={`text-sm ${muted}`}>
                   {hasFiles ? '아래 버튼을 클릭하거나 직접 질문을 입력하세요' : 'PDF 문서를 업로드하면 AI에게 무엇이든 질문할 수 있습니다'}
@@ -1217,12 +1217,12 @@ ${contextText || '(업로드된 문서 없음)'}`;
                       initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: i * 0.06 }}
                       onClick={() => sendMessage(item.q)}
-                      className={`p-4 rounded-2xl border text-left transition-all hover:shadow-lg hover:-translate-y-0.5 ${d('bg-white border-gray-100 hover:border-blue-200','bg-gray-900 border-gray-800 hover:border-blue-700 hover:bg-gray-800/80')}`}
+                      className={`p-4 rounded-2xl border text-left transition-all hover:shadow-lg hover:-translate-y-0.5 ${d('bg-white border-zinc-200 hover:border-zinc-400','bg-zinc-900 border-zinc-800 hover:border-zinc-600 hover:bg-zinc-800/80')}`}
                     >
                       <div className={`w-9 h-9 ${item.bg} rounded-xl flex items-center justify-center mb-3`}>
                         <item.icon className={`w-4 h-4 ${item.color}`} />
                       </div>
-                      <p className={`font-bold text-sm ${d('text-gray-900','text-white')}`}>{item.title}</p>
+                      <p className={`font-bold text-sm ${d('text-zinc-900','text-white')}`}>{item.title}</p>
                     </motion.button>
                   ))}
                 </div>
@@ -1231,21 +1231,21 @@ ${contextText || '(업로드된 문서 없음)'}`;
                   initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
                   className={`rounded-3xl border-2 border-dashed p-10 flex flex-col items-center gap-4 text-center transition-all ${
                     devMode
-                      ? d('border-blue-200 hover:border-blue-400 hover:bg-blue-50/50 cursor-pointer','border-blue-800 hover:border-blue-500 hover:bg-blue-950/20 cursor-pointer')
-                      : d('border-gray-100','border-gray-800')
+                      ? d('border-zinc-200 hover:border-zinc-400 hover:bg-zinc-100/50 cursor-pointer','border-zinc-700 hover:border-zinc-500 hover:bg-zinc-800/20 cursor-pointer')
+                      : d('border-zinc-100','border-zinc-800')
                   }`}
                   onClick={devMode ? requestUpload : undefined}
                   role={devMode ? 'button' : undefined}
                   aria-label={devMode ? 'PDF 업로드' : undefined}
                 >
-                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center ${devMode ? 'bg-blue-600 shadow-lg shadow-blue-500/30' : d('bg-gray-100','bg-gray-800')}`}>
+                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center ${devMode ? 'bg-zinc-800 shadow-lg shadow-black/20' : d('bg-zinc-100','bg-zinc-800')}`}>
                     {devMode
                       ? <Upload className="w-7 h-7 text-white" />
-                      : <Lock className={`w-7 h-7 ${d('text-gray-400','text-gray-600')}`} />
+                      : <Lock className={`w-7 h-7 ${d('text-zinc-400','text-zinc-600')}`} />
                     }
                   </div>
                   <div>
-                    <p className={`font-bold text-base mb-1 ${d('text-gray-700','text-gray-300')}`}>
+                    <p className={`font-bold text-base mb-1 ${d('text-zinc-700','text-zinc-300')}`}>
                       {devMode ? 'PDF 문서 업로드' : '파일을 업로드해주세요'}
                     </p>
                     <p className={`text-sm ${muted}`}>
@@ -1268,11 +1268,11 @@ ${contextText || '(업로드된 문서 없음)'}`;
                   className={`flex gap-3 ${m.role === 'user' ? 'flex-row-reverse' : ''}`}
                 >
                   <div className={`shrink-0 w-8 h-8 rounded-2xl flex items-center justify-center shadow-sm ${
-                    m.role === 'user' ? 'bg-blue-600 shadow-blue-500/20' : d('bg-gray-100','bg-gray-800')
+                    m.role === 'user' ? 'bg-zinc-800 shadow-black/15' : d('bg-zinc-100','bg-zinc-800')
                   }`} aria-hidden="true">
                     {m.role === 'user'
                       ? <User className="w-4 h-4 text-white" />
-                      : <Bot className={`w-4 h-4 ${d('text-gray-500','text-gray-400')}`} />
+                      : <Bot className={`w-4 h-4 ${d('text-zinc-500','text-zinc-400')}`} />
                     }
                   </div>
 
@@ -1280,8 +1280,8 @@ ${contextText || '(업로드된 문서 없음)'}`;
                     <div
                       className={`px-4 py-3 rounded-2xl ${
                         m.role === 'user'
-                          ? 'bg-blue-600 text-white rounded-tr-sm shadow-md shadow-blue-500/10'
-                          : d('bg-white border border-gray-100 text-gray-800 shadow-sm','bg-gray-800 border border-gray-700/60 text-gray-100') + ' rounded-tl-sm'
+                          ? 'bg-zinc-800 text-white rounded-tr-sm shadow-md shadow-black/10'
+                          : d('bg-white border border-zinc-100 text-zinc-800 shadow-sm','bg-zinc-800 border border-zinc-700/60 text-zinc-100') + ' rounded-tl-sm'
                       }`}
                       style={{ fontSize: `${fontSize}px` }}
                     >
@@ -1296,7 +1296,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
                       </span>
                       {m.role === 'bot' && m.content && (
                         <button onClick={() => copyMsg(m.content, i)} aria-label="메시지 복사"
-                          className={`flex items-center gap-1 px-1.5 py-0.5 rounded-lg text-[10px] transition-colors ${d('hover:bg-gray-100','hover:bg-gray-800')}`}>
+                          className={`flex items-center gap-1 px-1.5 py-0.5 rounded-lg text-[10px] transition-colors ${d('hover:bg-zinc-100','hover:bg-zinc-800')}`}>
                           {copiedIdx === i
                             ? <><Check className="w-3 h-3 text-emerald-500" /><span className="text-emerald-500">복사됨</span></>
                             : <><Copy className={`w-3 h-3 ${muted}`} /><span className={muted}>복사</span></>
@@ -1310,16 +1310,16 @@ ${contextText || '(업로드된 문서 없음)'}`;
 
               {loading && (
                 <div className="flex gap-3" aria-label="AI 응답 생성 중">
-                  <div className={`w-8 h-8 rounded-2xl flex items-center justify-center shadow-sm ${d('bg-gray-100','bg-gray-800')}`}>
-                    <Bot className={`w-4 h-4 ${d('text-gray-500','text-gray-400')}`} />
+                  <div className={`w-8 h-8 rounded-2xl flex items-center justify-center shadow-sm ${d('bg-zinc-100','bg-zinc-800')}`}>
+                    <Bot className={`w-4 h-4 ${d('text-zinc-500','text-zinc-400')}`} />
                   </div>
-                  <div className={`px-4 py-3 rounded-2xl rounded-tl-sm ${d('bg-white border border-gray-100 shadow-sm','bg-gray-800 border border-gray-700/60')}`}>
+                  <div className={`px-4 py-3 rounded-2xl rounded-tl-sm ${d('bg-white border border-zinc-100 shadow-sm','bg-zinc-800 border border-zinc-700/60')}`}>
                     <div className="flex gap-1 items-center h-5">
                       {[0, 1, 2].map(j => (
                         <motion.div key={j}
                           animate={{ y: [0, -4, 0] }}
                           transition={{ duration: 0.7, repeat: Infinity, delay: j * 0.15 }}
-                          className="w-1.5 h-1.5 rounded-full bg-blue-500"
+                          className={`w-1.5 h-1.5 rounded-full ${d('bg-zinc-400','bg-zinc-500')}`}
                         />
                       ))}
                     </div>
@@ -1332,23 +1332,23 @@ ${contextText || '(업로드된 문서 없음)'}`;
         </div>
 
         {/* 입력창 */}
-        <div className={`px-4 py-3 border-t ${border_c} ${d('bg-white','bg-gray-900')} shrink-0 no-print`}>
+        <div className={`px-4 py-3 border-t ${border_c} ${d('bg-white','bg-zinc-900')} shrink-0 no-print`}>
           <div className="max-w-3xl mx-auto">
             <div className={`flex items-end gap-2 px-4 py-3 rounded-2xl border transition-all ${d(
-              'bg-gray-50 border-gray-200 focus-within:border-blue-400 focus-within:bg-white focus-within:shadow-sm',
-              'bg-gray-800 border-gray-700 focus-within:border-blue-500'
+              'bg-zinc-50 border-zinc-200 focus-within:border-zinc-400 focus-within:bg-white focus-within:shadow-sm',
+              'bg-zinc-800 border-zinc-700 focus-within:border-zinc-500'
             )}`}>
               <button onClick={requestUpload}
                 aria-label={devMode ? 'PDF 업로드' : '관리자 전용'} title={devMode ? 'PDF 업로드' : '관리자 전용'}
                 className={`shrink-0 p-1.5 rounded-xl mb-0.5 transition-colors ${hover_light}`}>
-                <Paperclip className={`w-4 h-4 ${devMode ? 'text-blue-500' : muted}`} />
+                <Paperclip className={`w-4 h-4 ${devMode ? 'text-zinc-500' : muted}`} />
               </button>
               <textarea
                 ref={inputRef} value={input}
                 onChange={handleInputChange} onKeyDown={handleKeyDown}
                 placeholder={hasFiles ? '질문을 입력하세요... (Enter: 전송 / Shift+Enter: 줄바꿈)' : '먼저 PDF를 업로드해주세요...'}
                 rows={1} aria-label="메시지 입력"
-                className={`flex-1 resize-none bg-transparent outline-none leading-relaxed ${d('placeholder:text-gray-400','placeholder:text-gray-600')}`}
+                className={`flex-1 resize-none bg-transparent outline-none leading-relaxed ${d('placeholder:text-zinc-400','placeholder:text-zinc-600')}`}
                 style={{ fontSize: `${fontSize}px`, maxHeight: '160px' }}
               />
               <button onClick={toggleVoice}
@@ -1358,7 +1358,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
               </button>
               <button onClick={() => sendMessage()} disabled={!input.trim() || loading}
                 aria-label="전송" title="전송"
-                className="shrink-0 w-8 h-8 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl flex items-center justify-center transition-all mb-0.5 shadow-sm shadow-blue-500/20">
+                className="shrink-0 w-8 h-8 bg-zinc-800 hover:bg-zinc-900 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl flex items-center justify-center transition-all mb-0.5 shadow-sm shadow-black/15">
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowUp className="w-4 h-4" />}
               </button>
             </div>
