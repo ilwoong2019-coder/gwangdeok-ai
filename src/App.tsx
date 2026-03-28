@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import Groq from 'groq-sdk';
+import pdfjsWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import ReactMarkdown from 'react-markdown';
+import { createClient } from '@supabase/supabase-js';
 import {
   Upload, FileText, Trash2, Plus, FolderPlus, X, Menu,
   Download, Copy, Check, Mic, MicOff, Sun, Moon,
@@ -8,6 +9,8 @@ import {
   RefreshCw, Bot, User, Loader2, AlertCircle, Sparkles,
   MessageSquare, FileSearch, LayoutGrid, Paperclip,
   Lock, LockOpen, Printer, AlertTriangle, Settings2, Pencil,
+  Users, UserCheck, UserX, UserMinus, Search, BarChart3,
+  CheckSquare, Square, LogOut, ShieldCheck, Clock, ChevronDown,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -16,10 +19,7 @@ let _pdfjs: typeof import('pdfjs-dist') | null = null;
 const getPdfjs = async () => {
   if (!_pdfjs) {
     _pdfjs = await import('pdfjs-dist');
-    _pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-      'pdfjs-dist/build/pdf.worker.min.mjs',
-      import.meta.url
-    ).toString();
+    _pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
   }
   return _pdfjs;
 };
@@ -29,6 +29,18 @@ interface FileData   { id: string; name: string; text: string; }
 interface FolderData { id: string; name: string; files: FileData[]; }
 interface Message    { role: 'user' | 'bot'; content: string; ts: number; }
 interface ConfirmDlg { msg: string; onConfirm: () => void; }
+
+type UserStatus  = 'pending' | 'active' | 'inactive' | 'rejected';
+type Affiliation = 'middle' | 'high';
+interface AppUser {
+  id:            string;
+  name:          string;
+  affiliation:   Affiliation;
+  password_hash: string;
+  status:        UserStatus;
+  created_at:    string;
+  approved_at?:  string;
+}
 
 // ── Constants ─────────────────────────────────────────────
 const MODEL            = 'llama-3.3-70b-versatile';
@@ -43,8 +55,130 @@ const LS = {
   theme:    'gd2-theme',
   size:     'gd2-size',
   sidebar:  'gd2-sidebar',
+  user:     'gd2-user-session',
+  usersData:'gd2-users-data',
 };
 const DEFAULT_FOLDER: FolderData = { id: 'default', name: '학교 규정 및 자료', files: [] };
+
+// ── Supabase (클라우드 동기화) ────────────────────────────────
+const SB_URL = (import.meta as any).env?.VITE_SUPABASE_URL as string | undefined;
+const SB_KEY = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY as string | undefined;
+const supabase = SB_URL && SB_KEY ? createClient(SB_URL, SB_KEY) : null;
+
+async function sbLoadFolders(): Promise<FolderData[] | null> {
+  if (!supabase) return null;
+  try {
+    const { data, error } = await supabase
+      .from('app_data')
+      .select('value')
+      .eq('key', 'folders')
+      .maybeSingle();
+    if (error || !data) return null;
+    return data.value as FolderData[];
+  } catch { return null; }
+}
+
+async function sbSaveFolders(folders: FolderData[]): Promise<void> {
+  if (!supabase) return;
+  try {
+    await supabase.from('app_data').upsert({
+      key: 'folders',
+      value: folders,
+      updated_at: new Date().toISOString(),
+    });
+  } catch (e) { console.error('Supabase 동기화 오류:', e); }
+}
+
+// ── 비밀번호 해시 (SHA-256) ───────────────────────────────────
+async function hashPassword(pw: string): Promise<string> {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pw));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// ── 사용자 관리 Supabase/LocalStorage 함수 ───────────────────
+// 로컬 fallback: Supabase 미설정 시 gd2-users-data 키 사용
+function _lsUsers(): AppUser[] { try { const v = localStorage.getItem(LS.usersData); return v ? JSON.parse(v) : []; } catch { return []; } }
+function _lsSaveUsers(users: AppUser[]) { try { localStorage.setItem(LS.usersData, JSON.stringify(users)); } catch {} }
+
+async function sbLoadUsers(): Promise<AppUser[]> {
+  if (!supabase) return _lsUsers();
+  try {
+    const { data, error } = await supabase.from('gd_users').select('*').order('created_at', { ascending: true });
+    if (error || !data) return [];
+    return data as AppUser[];
+  } catch { return []; }
+}
+
+async function sbRegisterUser(name: string, affiliation: Affiliation, passwordHash: string): Promise<AppUser | null> {
+  if (!supabase) {
+    const users = _lsUsers();
+    const newUser: AppUser = { id: crypto.randomUUID(), name, affiliation, password_hash: passwordHash, status: 'pending', created_at: new Date().toISOString() };
+    _lsSaveUsers([...users, newUser]);
+    return newUser;
+  }
+  try {
+    const { data, error } = await supabase.from('gd_users')
+      .insert({ name, affiliation, password_hash: passwordHash, status: 'pending' })
+      .select().single();
+    if (error || !data) return null;
+    return data as AppUser;
+  } catch { return null; }
+}
+
+async function sbFindUser(name: string, affiliation: Affiliation, passwordHash: string): Promise<AppUser | null> {
+  if (!supabase) {
+    return _lsUsers().find(u => u.name === name && u.affiliation === affiliation && u.password_hash === passwordHash) ?? null;
+  }
+  try {
+    const { data, error } = await supabase.from('gd_users').select('*')
+      .eq('name', name).eq('affiliation', affiliation).eq('password_hash', passwordHash).maybeSingle();
+    if (error || !data) return null;
+    return data as AppUser;
+  } catch { return null; }
+}
+
+async function sbGetUserById(id: string): Promise<AppUser | null> {
+  if (!supabase) return _lsUsers().find(u => u.id === id) ?? null;
+  try {
+    const { data, error } = await supabase.from('gd_users').select('*').eq('id', id).maybeSingle();
+    if (error || !data) return null;
+    return data as AppUser;
+  } catch { return null; }
+}
+
+async function sbUpdateUserStatus(id: string, status: UserStatus): Promise<boolean> {
+  const updates: Partial<AppUser> = { status, ...(status === 'active' ? { approved_at: new Date().toISOString() } : {}) };
+  if (!supabase) { _lsSaveUsers(_lsUsers().map(u => u.id === id ? { ...u, ...updates } : u)); return true; }
+  try {
+    const { error } = await supabase.from('gd_users').update(updates).eq('id', id);
+    return !error;
+  } catch { return false; }
+}
+
+async function sbBulkUpdateStatus(ids: string[], status: UserStatus): Promise<boolean> {
+  const updates: Partial<AppUser> = { status, ...(status === 'active' ? { approved_at: new Date().toISOString() } : {}) };
+  if (!supabase) { _lsSaveUsers(_lsUsers().map(u => ids.includes(u.id) ? { ...u, ...updates } : u)); return true; }
+  try {
+    const { error } = await supabase.from('gd_users').update(updates).in('id', ids);
+    return !error;
+  } catch { return false; }
+}
+
+async function sbDeleteUserRecord(id: string): Promise<boolean> {
+  if (!supabase) { _lsSaveUsers(_lsUsers().filter(u => u.id !== id)); return true; }
+  try {
+    const { error } = await supabase.from('gd_users').delete().eq('id', id);
+    return !error;
+  } catch { return false; }
+}
+
+async function sbCheckNameExists(name: string, affiliation: Affiliation): Promise<boolean> {
+  if (!supabase) return _lsUsers().some(u => u.name === name && u.affiliation === affiliation);
+  try {
+    const { data } = await supabase.from('gd_users').select('id').eq('name', name).eq('affiliation', affiliation).limit(1);
+    return (data?.length ?? 0) > 0;
+  } catch { return false; }
+}
 
 function lsGet<T>(key: string, fallback: T): T {
   try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
@@ -101,6 +235,7 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(() => lsGet(LS.sidebar, true));
 
   // UI 상태
+  const [syncing,        setSyncing]       = useState(!!supabase);
   const [input,          setInput]         = useState('');
   const [loading,        setLoading]       = useState(false);
   const [processingMsg,  setProcessingMsg] = useState<string | null>(null);
@@ -124,6 +259,28 @@ export default function App() {
   const [editingFolderName, setEditingFolderName] = useState(false);
   const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
   const [renamingFolderText, setRenamingFolderText] = useState('');
+
+  // ── 인증 상태 ─────────────────────────────────────────────
+  const [authInitialized, setAuthInitialized] = useState(false);
+  const [authView,   setAuthView]   = useState<'login' | 'register' | 'pending' | 'app'>('login');
+  const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
+  const [loginName,  setLoginName]  = useState('');
+  const [loginAffil, setLoginAffil] = useState<Affiliation>('middle');
+  const [loginPw,    setLoginPw]    = useState('');
+  const [regName,    setRegName]    = useState('');
+  const [regAffil,   setRegAffil]   = useState<Affiliation>('middle');
+  const [regPw,      setRegPw]      = useState('');
+  const [regPwConfirm, setRegPwConfirm] = useState('');
+  const [authError,  setAuthError]  = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
+
+  // ── 사용자 관리 상태 (관리자) ─────────────────────────────
+  const [showUserMgmt, setShowUserMgmt]     = useState(false);
+  const [allUsers,     setAllUsers]         = useState<AppUser[]>([]);
+  const [usersLoading, setUsersLoading]     = useState(false);
+  const [userMgmtTab,  setUserMgmtTab]      = useState<'dashboard' | 'middle' | 'high'>('dashboard');
+  const [userSearch,   setUserSearch]       = useState('');
+  const [selectedIds,  setSelectedIds]      = useState<string[]>([]);
 
   // Refs
   const fileRef      = useRef<HTMLInputElement>(null);
@@ -149,8 +306,36 @@ export default function App() {
     { icon: MessageSquare, color: 'text-zinc-500',  bg: d('bg-zinc-100','bg-zinc-700/40'), title: '자유 질문',  q: '교사들이 가장 궁금해할 내용은 무엇인가요?' },
   ], [dark]);
 
+  // ── Supabase: 앱 시작 시 서버에서 폴더 데이터 로드 ──────────
+  useEffect(() => {
+    if (!supabase) return;
+    (async () => {
+      setSyncing(true);
+      try {
+        const serverFolders = await sbLoadFolders();
+        if (serverFolders && serverFolders.length > 0) {
+          // 서버 데이터 우선 (웹·앱 동기화)
+          setFolders(serverFolders);
+          lsSave(LS.folders, serverFolders);
+        } else {
+          // 서버가 비어있으면 현재 localStorage 데이터를 서버로 업로드 (최초 마이그레이션)
+          const local = lsGet(LS.folders, [DEFAULT_FOLDER]);
+          await sbSaveFolders(local);
+        }
+      } catch {}
+      setSyncing(false);
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ── Persistence ───────────────────────────────────────────
-  useEffect(() => { try { lsSave(LS.folders,  folders); }   catch {} }, [folders]);
+  useEffect(() => {
+    try { lsSave(LS.folders, folders); } catch {}
+    // Supabase에도 동기화 (디바운스 1초)
+    if (!supabase) return;
+    const t = setTimeout(() => sbSaveFolders(folders), 1000);
+    return () => clearTimeout(t);
+  }, [folders]);
   useEffect(() => { localStorage.setItem(LS.folderId, folderId); }, [folderId]);
   useEffect(() => { localStorage.setItem(LS.theme, theme); document.documentElement.style.colorScheme = theme; }, [theme]);
   useEffect(() => { localStorage.setItem(LS.size, String(fontSize)); }, [fontSize]);
@@ -170,18 +355,28 @@ export default function App() {
   // ── 초기 포커스 ───────────────────────────────────────────
   useEffect(() => { inputRef.current?.focus(); }, []);
 
+  // ── 앱 시작 시 사용자 세션 복원 ──────────────────────────
+  useEffect(() => {
+    if (devMode) { setAuthInitialized(true); return; }
+    const saved = lsGet<AppUser | null>(LS.user, null);
+    if (!saved?.id) { setAuthView('login'); setAuthInitialized(true); return; }
+    (async () => {
+      const fresh = await sbGetUserById(saved.id);
+      const user  = fresh ?? saved;
+      setCurrentUser(user);
+      if (user.status === 'active')        setAuthView('app');
+      else if (user.status === 'pending')  setAuthView('pending');
+      else { localStorage.removeItem(LS.user); setAuthView('login'); }
+      setAuthInitialized(true);
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ── 컨텍스트 용량 경고 ─────────────────────────────────────
   useEffect(() => {
     const total = (folder?.files ?? []).reduce((s, f) => s + f.text.length, 0);
     setCtxWarning(total > MAX_CONTEXT_CHARS);
   }, [folder]);
-
-  // ── AI helper ─────────────────────────────────────────────
-  const getAI = () => {
-    const key = (import.meta as any).env?.VITE_GROQ_API_KEY;
-    if (!key) throw new Error('Groq API 키가 설정되지 않았습니다.');
-    return new Groq({ apiKey: key, dangerouslyAllowBrowser: true });
-  };
 
   // ── PDF 추출 (pdfjs 지연 로딩) ───────────────────────────
   const extractPdf = async (file: File): Promise<string> => {
@@ -282,7 +477,6 @@ export default function App() {
     setLoading(true); setError(null);
 
     try {
-      const ai  = getAI();
       const ctx = (folder?.files ?? []).map(f => `### 파일: ${f.name}\n${f.text}`).join('\n\n');
 
       if (!ctx.trim()) {
@@ -315,21 +509,31 @@ ${contextText || '(업로드된 문서 없음)'}`;
           content: m.content,
         }));
 
-      const stream = await getAI().chat.completions.create({
-        model: MODEL,
-        messages: [
-          { role: 'system', content: system },
-          ...history,
-          { role: 'user', content: msg },
-        ],
-        stream: true,
-        max_tokens: 4096,
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: MODEL,
+          max_tokens: 4096,
+          messages: [
+            { role: 'system', content: system },
+            ...history,
+            { role: 'user', content: msg },
+          ],
+        }),
       });
 
+      if (!res.ok) throw new Error(`AI 서버 오류 (${res.status})`);
+
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
       let full = '';
       setMessages(prev => [...prev, { role: 'bot', content: '', ts: Date.now() }]);
-      for await (const chunk of stream) {
-        full += chunk.choices[0]?.delta?.content ?? '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        full += decoder.decode(value, { stream: true });
         setMessages(prev => {
           const a = [...prev];
           a[a.length - 1] = { ...a[a.length - 1], content: full };
@@ -485,6 +689,101 @@ ${contextText || '(업로드된 문서 없음)'}`;
 
   const exitDevMode = () => { setDevMode(false); sessionStorage.removeItem('gd-dev'); };
 
+  // ── 인증 핸들러 ───────────────────────────────────────────
+  const handleLogin = async () => {
+    if (!loginName.trim() || !loginPw) { setAuthError('이름과 비밀번호를 입력해주세요.'); return; }
+    setAuthLoading(true); setAuthError('');
+    try {
+      const hash = await hashPassword(loginPw);
+      const user = await sbFindUser(loginName.trim(), loginAffil, hash);
+      if (!user) { setAuthError('이름, 소속 또는 비밀번호가 일치하지 않습니다.'); return; }
+      try { localStorage.setItem(LS.user, JSON.stringify(user)); } catch {}
+      setCurrentUser(user);
+      if (user.status === 'active')        setAuthView('app');
+      else if (user.status === 'pending')  setAuthView('pending');
+      else if (user.status === 'inactive') setAuthError('계정이 비활성화되었습니다. 관리자에게 문의하세요.');
+      else                                 setAuthError('가입 신청이 거부되었습니다. 관리자에게 문의하세요.');
+    } finally { setAuthLoading(false); }
+  };
+
+  const handleRegister = async () => {
+    if (!regName.trim() || !regPw || !regPwConfirm) { setAuthError('모든 항목을 입력해주세요.'); return; }
+    if (regPw.length < 4) { setAuthError('비밀번호는 4자 이상이어야 합니다.'); return; }
+    if (regPw !== regPwConfirm) { setAuthError('비밀번호가 일치하지 않습니다.'); return; }
+    setAuthLoading(true); setAuthError('');
+    try {
+      const hash = await hashPassword(regPw);
+      // 동일 이름+소속+비번으로 이미 존재하면 중복
+      const existing = await sbFindUser(regName.trim(), regAffil, hash);
+      if (existing) { setAuthError('이미 가입된 계정입니다.'); return; }
+      const user = await sbRegisterUser(regName.trim(), regAffil, hash);
+      if (!user) { setAuthError('가입 신청 중 오류가 발생했습니다. 다시 시도해주세요.'); return; }
+      try { localStorage.setItem(LS.user, JSON.stringify(user)); } catch {}
+      setCurrentUser(user);
+      setAuthView('pending');
+    } finally { setAuthLoading(false); }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem(LS.user);
+    setCurrentUser(null);
+    setAuthView('login');
+    setLoginName(''); setLoginPw(''); setAuthError('');
+  };
+
+  // ── 사용자 관리 핸들러 (관리자) ──────────────────────────
+  const loadUsers = async () => {
+    setUsersLoading(true);
+    const users = await sbLoadUsers();
+    setAllUsers(users);
+    setUsersLoading(false);
+  };
+
+  const updateUserStatus = async (id: string, status: UserStatus) => {
+    const ok = await sbUpdateUserStatus(id, status);
+    if (ok) {
+      const now = new Date().toISOString();
+      setAllUsers(prev => prev.map(u => u.id === id ? { ...u, status, ...(status === 'active' ? { approved_at: now } : {}) } : u));
+    }
+  };
+
+  const bulkApprove = async () => {
+    if (!selectedIds.length) return;
+    const ids = selectedIds.filter(id => allUsers.find(u => u.id === id)?.status === 'pending');
+    if (!ids.length) return;
+    const ok = await sbBulkUpdateStatus(ids, 'active');
+    if (ok) {
+      const now = new Date().toISOString();
+      setAllUsers(prev => prev.map(u => ids.includes(u.id) ? { ...u, status: 'active', approved_at: now } : u));
+      setSelectedIds([]);
+    }
+  };
+
+  const deleteUser = (id: string) => {
+    askConfirm('이 사용자를 삭제할까요? 이 작업은 되돌릴 수 없습니다.', async () => {
+      const ok = await sbDeleteUserRecord(id);
+      if (ok) setAllUsers(prev => prev.filter(u => u.id !== id));
+    });
+  };
+
+  // 동명이인 표시 (같은 소속 내 같은 이름이면 번호 부여)
+  const getDisplayName = (user: AppUser): string => {
+    const group = allUsers.filter(u => u.name === user.name && u.affiliation === user.affiliation);
+    if (group.length <= 1) return user.name;
+    const sorted = [...group].sort((a, b) => a.created_at.localeCompare(b.created_at));
+    const idx = sorted.findIndex(u => u.id === user.id);
+    return `${user.name}(${idx + 1})`;
+  };
+
+  const toggleSelectUser = (id: string) =>
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+
+  const toggleSelectAll = (users: AppUser[]) => {
+    const ids = users.map(u => u.id);
+    const allSelected = ids.every(id => selectedIds.includes(id));
+    setSelectedIds(allSelected ? selectedIds.filter(id => !ids.includes(id)) : [...new Set([...selectedIds, ...ids])]);
+  };
+
   // ── 음성 입력 ─────────────────────────────────────────────
   const toggleVoice = () => {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -528,6 +827,167 @@ ${contextText || '(업로드된 문서 없음)'}`;
   const card        = d('bg-white',        'bg-zinc-800');
   const muted       = d('text-zinc-500',   'text-zinc-400');
   const hover_light = d('hover:bg-zinc-100','hover:bg-zinc-800');
+
+  // ─────────────────────────────────────────────────────────
+  //  AUTH SCREENS
+  // ─────────────────────────────────────────────────────────
+  if (!devMode) {
+    // 세션 초기화 중
+    if (!authInitialized) return (
+      <div className={`flex h-screen items-center justify-center ${dark ? 'bg-zinc-950' : 'bg-zinc-50'}`}>
+        <Loader2 className="w-8 h-8 animate-spin text-zinc-400" />
+      </div>
+    );
+
+    // 승인 대기
+    if (authView === 'pending') return (
+      <div className={`flex h-screen items-center justify-center p-4 ${dark ? 'bg-zinc-950 text-zinc-100' : 'bg-zinc-50 text-zinc-900'}`}
+        style={{ backgroundImage: 'url(/abc.png)', backgroundSize: 'cover' }}>
+        <div className={`absolute inset-0 ${dark ? 'bg-zinc-950/80' : 'bg-white/85'}`} />
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
+          className={`relative z-10 w-full max-w-sm ${dark ? 'bg-zinc-900 border border-zinc-800' : 'bg-white border border-zinc-200'} rounded-3xl shadow-2xl p-8 text-center`}>
+          <div className="w-16 h-16 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <Clock className="w-8 h-8 text-amber-500" />
+          </div>
+          <h2 className="font-bold text-lg mb-2">승인 대기 중</h2>
+          <p className={`text-sm mb-6 leading-relaxed ${muted}`}>
+            <span className="font-semibold">{currentUser?.name}</span>님의 가입 신청이 접수되었습니다.<br />
+            관리자 승인 후 이용하실 수 있습니다.
+          </p>
+          <div className={`text-xs px-3 py-2 rounded-xl mb-6 ${dark ? 'bg-zinc-800 text-zinc-400' : 'bg-zinc-50 text-zinc-500'}`}>
+            소속: {currentUser?.affiliation === 'middle' ? '중학교' : '고등학교'}
+          </div>
+          <button onClick={handleLogout}
+            className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl text-sm font-semibold transition-colors ${dark ? 'bg-zinc-700 hover:bg-zinc-600 text-zinc-200' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700'}`}>
+            <LogOut className="w-4 h-4" />로그아웃
+          </button>
+        </motion.div>
+      </div>
+    );
+
+    // 로그인 / 가입 신청
+    if (authView === 'login' || authView === 'register') {
+      const isReg = authView === 'register';
+      return (
+        <div className={`flex h-screen items-center justify-center p-4 ${dark ? 'bg-zinc-950 text-zinc-100' : 'bg-zinc-50 text-zinc-900'}`}
+          style={{ backgroundImage: 'url(/abc.png)', backgroundSize: 'cover' }}>
+          <div className={`absolute inset-0 ${dark ? 'bg-zinc-950/80' : 'bg-white/85'}`} />
+          <motion.div key={authView} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
+            className={`relative z-10 w-full max-w-sm ${dark ? 'bg-zinc-900 border border-zinc-800' : 'bg-white border border-zinc-200'} rounded-3xl shadow-2xl overflow-hidden`}>
+
+            {/* 헤더 */}
+            <div className="px-8 pt-8 pb-6 text-center"
+              style={{ backgroundImage: 'url(/abc.png)', backgroundSize: 'cover', backgroundPosition: 'center top' }}>
+              <div className={`absolute inset-0 ${dark ? 'bg-zinc-900/85' : 'bg-white/85'}`} />
+              <div className="relative z-10">
+                <div className="w-14 h-14 bg-zinc-600 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg">
+                  <Sparkles className="w-7 h-7 text-white" />
+                </div>
+                <h1 className="font-bold text-lg">광덕 AI 비서</h1>
+                <p className={`text-xs mt-1 ${muted}`}>{isReg ? '가입 신청' : '로그인'}</p>
+              </div>
+            </div>
+
+            <div className="px-8 py-6 space-y-4">
+              {/* 소속 선택 */}
+              <div>
+                <label className={`text-xs font-semibold mb-1.5 block ${muted}`}>소속</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {(['middle', 'high'] as Affiliation[]).map(a => {
+                    const val = isReg ? regAffil : loginAffil;
+                    const set = isReg ? setRegAffil : setLoginAffil;
+                    return (
+                      <button key={a} onClick={() => set(a)}
+                        className={`py-2.5 rounded-2xl text-sm font-semibold border transition-all ${
+                          val === a
+                            ? 'bg-zinc-600 text-white border-zinc-600 shadow-md'
+                            : dark ? 'border-zinc-700 text-zinc-300 hover:border-zinc-500' : 'border-zinc-200 text-zinc-600 hover:border-zinc-400'
+                        }`}
+                      >{a === 'middle' ? '중학교' : '고등학교'}</button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 이름 */}
+              <div>
+                <label className={`text-xs font-semibold mb-1.5 block ${muted}`}>이름</label>
+                <input
+                  type="text" autoComplete="name" placeholder="홍길동"
+                  value={isReg ? regName : loginName}
+                  onChange={e => isReg ? setRegName(e.target.value) : setLoginName(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && !isReg && handleLogin()}
+                  className={`w-full px-4 py-2.5 rounded-2xl border outline-none text-sm transition-colors ${
+                    dark ? 'bg-zinc-800 border-zinc-700 focus:border-zinc-500 text-zinc-100 placeholder:text-zinc-600'
+                         : 'bg-zinc-50 border-zinc-200 focus:border-zinc-400 focus:bg-white text-zinc-900 placeholder:text-zinc-400'
+                  }`}
+                />
+              </div>
+
+              {/* 비밀번호 */}
+              <div>
+                <label className={`text-xs font-semibold mb-1.5 block ${muted}`}>비밀번호</label>
+                <input
+                  type="password" placeholder={isReg ? '4자 이상' : '비밀번호 입력'}
+                  value={isReg ? regPw : loginPw}
+                  onChange={e => isReg ? setRegPw(e.target.value) : setLoginPw(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && !isReg && handleLogin()}
+                  className={`w-full px-4 py-2.5 rounded-2xl border outline-none text-sm transition-colors ${
+                    dark ? 'bg-zinc-800 border-zinc-700 focus:border-zinc-500 text-zinc-100 placeholder:text-zinc-600'
+                         : 'bg-zinc-50 border-zinc-200 focus:border-zinc-400 focus:bg-white text-zinc-900 placeholder:text-zinc-400'
+                  }`}
+                />
+              </div>
+
+              {/* 비밀번호 확인 (가입 시만) */}
+              {isReg && (
+                <div>
+                  <label className={`text-xs font-semibold mb-1.5 block ${muted}`}>비밀번호 확인</label>
+                  <input
+                    type="password" placeholder="비밀번호 재입력"
+                    value={regPwConfirm}
+                    onChange={e => setRegPwConfirm(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleRegister()}
+                    className={`w-full px-4 py-2.5 rounded-2xl border outline-none text-sm transition-colors ${
+                      dark ? 'bg-zinc-800 border-zinc-700 focus:border-zinc-500 text-zinc-100 placeholder:text-zinc-600'
+                           : 'bg-zinc-50 border-zinc-200 focus:border-zinc-400 focus:bg-white text-zinc-900 placeholder:text-zinc-400'
+                    }`}
+                  />
+                </div>
+              )}
+
+              {/* 오류 */}
+              {authError && (
+                <motion.div initial={{ opacity: 0, x: -4 }} animate={{ opacity: 1, x: 0 }}
+                  className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />{authError}
+                </motion.div>
+              )}
+
+              {/* 버튼 */}
+              <button
+                onClick={isReg ? handleRegister : handleLogin}
+                disabled={authLoading}
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-semibold bg-zinc-600 hover:bg-zinc-700 disabled:opacity-50 text-white transition-colors shadow-md shadow-black/15"
+              >
+                {authLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : isReg ? <UserCheck className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                {isReg ? '가입 신청하기' : '로그인'}
+              </button>
+
+              <div className="text-center">
+                <button
+                  onClick={() => { setAuthView(isReg ? 'login' : 'register'); setAuthError(''); setRegPw(''); setRegPwConfirm(''); }}
+                  className={`text-xs underline underline-offset-2 ${muted}`}
+                >
+                  {isReg ? '이미 계정이 있으신가요? 로그인' : '처음이신가요? 가입 신청'}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      );
+    }
+  }
 
   // ─────────────────────────────────────────────────────────
   //  RENDER
@@ -574,7 +1034,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
 
       {/* ── 파일 처리 오버레이 ── */}
       <AnimatePresence>
-        {processingMsg && (
+        {(processingMsg || syncing) && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm flex items-center justify-center"
@@ -586,8 +1046,13 @@ ${contextText || '(업로드된 문서 없음)'}`;
                 <div className="absolute inset-0 rounded-full bg-zinc-500/10 animate-ping" />
               </div>
               <div className="text-center">
-                <p className="font-bold mb-1">PDF 분석 중...</p>
-                <p className={`text-xs ${muted} leading-relaxed max-w-[200px]`}>{processingMsg}</p>
+                {syncing
+                  ? <p className="font-bold mb-1">서버에서 데이터 불러오는 중...</p>
+                  : <>
+                      <p className="font-bold mb-1">PDF 분석 중...</p>
+                      <p className={`text-xs ${muted} leading-relaxed max-w-[200px]`}>{processingMsg}</p>
+                    </>
+                }
               </div>
             </div>
           </motion.div>
@@ -1127,6 +1592,28 @@ ${contextText || '(업로드된 문서 없음)'}`;
                 </span>
                 {devMode ? <LockOpen className="w-4 h-4 text-emerald-500" /> : <Lock className={`w-4 h-4 ${muted}`} />}
               </button>
+              {/* 사용자 관리 (관리자만) */}
+              {devMode && (
+                <button
+                  onClick={() => { setShowUserMgmt(true); loadUsers(); }}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-all ${d('hover:bg-blue-50 text-blue-700','hover:bg-blue-950/30 text-blue-400')} ${hover_light}`}
+                  aria-label="사용자 관리"
+                >
+                  <span className="text-xs font-medium">사용자 관리</span>
+                  <Users className="w-4 h-4" />
+                </button>
+              )}
+              {/* 일반 사용자 로그아웃 */}
+              {!devMode && currentUser && (
+                <button
+                  onClick={handleLogout}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-colors ${hover_light}`}
+                  aria-label="로그아웃"
+                >
+                  <span className={`text-xs font-medium ${muted}`}>{currentUser.name} · {currentUser.affiliation === 'middle' ? '중학교' : '고등학교'}</span>
+                  <LogOut className={`w-4 h-4 ${muted}`} />
+                </button>
+              )}
               <p className={`text-[9px] text-center px-3 py-1 ${muted} opacity-50 leading-relaxed`}>
                 © 2026 광덕고등학교 조일웅 All Rights Reserved
               </p>
@@ -1382,6 +1869,290 @@ ${contextText || '(업로드된 문서 없음)'}`;
           </div>
         </div>
       </main>
+
+      {/* ════════════════════════════════════════
+          사용자 관리 패널 (관리자 전용)
+      ════════════════════════════════════════ */}
+      <AnimatePresence>
+        {showUserMgmt && devMode && (() => {
+          const affiliationLabel = (a: Affiliation) => a === 'middle' ? '중학교' : '고등학교';
+          const statusLabel = (s: UserStatus) => ({ pending: '신청중', active: '활성', inactive: '비활성', rejected: '거부됨' }[s]);
+          const statusColor = (s: UserStatus) => ({
+            pending:  d('bg-amber-50 text-amber-600 border-amber-200', 'bg-amber-950/30 text-amber-400 border-amber-800/40'),
+            active:   d('bg-emerald-50 text-emerald-600 border-emerald-200', 'bg-emerald-950/30 text-emerald-400 border-emerald-800/40'),
+            inactive: d('bg-zinc-100 text-zinc-500 border-zinc-200', 'bg-zinc-800 text-zinc-500 border-zinc-700'),
+            rejected: d('bg-red-50 text-red-500 border-red-200', 'bg-red-950/30 text-red-400 border-red-800/40'),
+          }[s]);
+
+          const filterUsers = (users: AppUser[]) => {
+            let list = [...users];
+            if (userSearch.trim()) {
+              const q = userSearch.trim().toLowerCase();
+              list = list.filter(u => u.name.toLowerCase().includes(q));
+            }
+            return list.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+          };
+
+          const middleUsers = filterUsers(allUsers.filter(u => u.affiliation === 'middle'));
+          const highUsers   = filterUsers(allUsers.filter(u => u.affiliation === 'high'));
+          const tabUsers    = userMgmtTab === 'middle' ? middleUsers : highUsers;
+
+          const stats = {
+            total:    allUsers.length,
+            pending:  allUsers.filter(u => u.status === 'pending').length,
+            active:   allUsers.filter(u => u.status === 'active').length,
+            inactive: allUsers.filter(u => u.status === 'inactive').length,
+            rejected: allUsers.filter(u => u.status === 'rejected').length,
+            middle:   allUsers.filter(u => u.affiliation === 'middle').length,
+            high:     allUsers.filter(u => u.affiliation === 'high').length,
+          };
+
+          const pendingInTab = tabUsers.filter(u => u.status === 'pending');
+          const allTabSelected = tabUsers.length > 0 && tabUsers.every(u => selectedIds.includes(u.id));
+
+          const renderUserRow = (user: AppUser) => (
+            <div key={user.id}
+              className={`flex items-center gap-3 p-3 rounded-2xl border transition-all ${d('border-zinc-100 hover:border-zinc-200 bg-zinc-50/40','border-zinc-700/50 hover:border-zinc-600 bg-zinc-800/20')}`}>
+              {/* 체크박스 */}
+              <button onClick={() => toggleSelectUser(user.id)} className="shrink-0">
+                {selectedIds.includes(user.id)
+                  ? <CheckSquare className="w-4 h-4 text-zinc-600" />
+                  : <Square className={`w-4 h-4 ${muted}`} />}
+              </button>
+
+              {/* 아바타 */}
+              <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 text-xs font-bold ${d('bg-zinc-100 text-zinc-600','bg-zinc-800 text-zinc-300')}`}>
+                {user.name.charAt(0)}
+              </div>
+
+              {/* 이름/소속 */}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold truncate">{getDisplayName(user)}</p>
+                <p className={`text-[10px] ${muted}`}>
+                  {affiliationLabel(user.affiliation)} · {new Date(user.created_at).toLocaleDateString('ko-KR')}
+                  {user.approved_at && ` · 승인: ${new Date(user.approved_at).toLocaleDateString('ko-KR')}`}
+                </p>
+              </div>
+
+              {/* 상태 뱃지 */}
+              <span className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusColor(user.status)}`}>
+                {statusLabel(user.status)}
+              </span>
+
+              {/* 액션 버튼 */}
+              <div className="flex items-center gap-1 shrink-0">
+                {user.status === 'pending' && (
+                  <>
+                    <button onClick={() => updateUserStatus(user.id, 'active')}
+                      title="승인" aria-label="승인"
+                      className={`p-1.5 rounded-xl transition-colors ${d('hover:bg-emerald-50 text-zinc-400 hover:text-emerald-600','hover:bg-emerald-950/30 text-zinc-600 hover:text-emerald-400')}`}>
+                      <UserCheck className="w-3.5 h-3.5" />
+                    </button>
+                    <button onClick={() => updateUserStatus(user.id, 'rejected')}
+                      title="거부" aria-label="거부"
+                      className={`p-1.5 rounded-xl transition-colors ${d('hover:bg-red-50 text-zinc-400 hover:text-red-500','hover:bg-red-950/30 text-zinc-600 hover:text-red-400')}`}>
+                      <UserX className="w-3.5 h-3.5" />
+                    </button>
+                  </>
+                )}
+                {user.status === 'active' && (
+                  <button onClick={() => updateUserStatus(user.id, 'inactive')}
+                    title="비활성화" aria-label="비활성화"
+                    className={`p-1.5 rounded-xl transition-colors ${d('hover:bg-zinc-100 text-zinc-400 hover:text-zinc-600','hover:bg-zinc-700 text-zinc-600 hover:text-zinc-400')}`}>
+                    <UserMinus className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                {(user.status === 'inactive' || user.status === 'rejected') && (
+                  <button onClick={() => updateUserStatus(user.id, 'active')}
+                    title="활성화" aria-label="활성화"
+                    className={`p-1.5 rounded-xl transition-colors ${d('hover:bg-emerald-50 text-zinc-400 hover:text-emerald-600','hover:bg-emerald-950/30 text-zinc-600 hover:text-emerald-400')}`}>
+                    <UserCheck className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                <button onClick={() => deleteUser(user.id)}
+                  title="삭제" aria-label="삭제"
+                  className={`p-1.5 rounded-xl transition-colors ${d('hover:bg-red-50 text-zinc-400 hover:text-red-500','hover:bg-red-950/30 text-zinc-600 hover:text-red-400')}`}>
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          );
+
+          return (
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+              onClick={() => setShowUserMgmt(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0, y: 12 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.95, opacity: 0 }}
+                onClick={e => e.stopPropagation()}
+                className={`${card} w-full max-w-3xl rounded-3xl shadow-2xl flex flex-col overflow-hidden`}
+                style={{ maxHeight: '90vh' }}
+                role="dialog" aria-modal="true" aria-label="사용자 관리"
+              >
+                {/* ── 헤더 ── */}
+                <div className={`flex items-center gap-3 px-6 py-4 border-b ${border_c} shrink-0`}>
+                  <div className="w-10 h-10 bg-zinc-600 rounded-2xl flex items-center justify-center shadow-md shadow-black/20">
+                    <Users className="w-5 h-5 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-bold">사용자 관리</p>
+                    <p className={`text-xs ${muted}`}>가입 신청 승인 및 계정 관리</p>
+                  </div>
+                  <button onClick={() => loadUsers()} title="새로고침"
+                    className={`p-2 rounded-xl ${hover_light} transition-colors`} aria-label="새로고침">
+                    <RefreshCw className={`w-4 h-4 ${usersLoading ? 'animate-spin' : ''}`} />
+                  </button>
+                  <button onClick={() => setShowUserMgmt(false)} aria-label="닫기"
+                    className={`p-2 rounded-xl ${hover_light} transition-colors`}>
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* ── 탭 ── */}
+                <div className={`flex border-b ${border_c} shrink-0`}>
+                  {(['dashboard', 'middle', 'high'] as const).map(tab => (
+                    <button key={tab}
+                      onClick={() => { setUserMgmtTab(tab); setSelectedIds([]); }}
+                      className={`flex items-center gap-1.5 px-5 py-3 text-sm font-semibold border-b-2 transition-colors ${
+                        userMgmtTab === tab
+                          ? 'border-zinc-600 text-zinc-700 dark:text-zinc-200'
+                          : `border-transparent ${muted} hover:text-zinc-600`
+                      }`}
+                    >
+                      {tab === 'dashboard' && <BarChart3 className="w-4 h-4" />}
+                      {tab === 'middle'    && <Users className="w-4 h-4" />}
+                      {tab === 'high'      && <Users className="w-4 h-4" />}
+                      {tab === 'dashboard' ? '대시보드' : tab === 'middle' ? `중학교 (${stats.middle})` : `고등학교 (${stats.high})`}
+                      {tab === 'middle' && allUsers.filter(u => u.affiliation === 'middle' && u.status === 'pending').length > 0 && (
+                        <span className="w-4 h-4 rounded-full bg-amber-500 text-white text-[9px] font-bold flex items-center justify-center">
+                          {allUsers.filter(u => u.affiliation === 'middle' && u.status === 'pending').length}
+                        </span>
+                      )}
+                      {tab === 'high' && allUsers.filter(u => u.affiliation === 'high' && u.status === 'pending').length > 0 && (
+                        <span className="w-4 h-4 rounded-full bg-amber-500 text-white text-[9px] font-bold flex items-center justify-center">
+                          {allUsers.filter(u => u.affiliation === 'high' && u.status === 'pending').length}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+
+                {/* ── 내용 ── */}
+                <div className="flex-1 overflow-y-auto hide-scrollbar">
+                  {usersLoading ? (
+                    <div className="flex items-center justify-center py-16">
+                      <Loader2 className="w-8 h-8 animate-spin text-zinc-400" />
+                    </div>
+                  ) : userMgmtTab === 'dashboard' ? (
+                    // ── 대시보드 ──
+                    <div className="p-6 space-y-6">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        {[
+                          { label: '전체 사용자', value: stats.total,    icon: Users,       color: 'text-zinc-600' },
+                          { label: '신청 중',     value: stats.pending,  icon: Clock,       color: 'text-amber-500' },
+                          { label: '활성',        value: stats.active,   icon: UserCheck,   color: 'text-emerald-500' },
+                          { label: '비활성',      value: stats.inactive, icon: UserMinus,   color: 'text-zinc-400' },
+                          { label: '거부됨',      value: stats.rejected, icon: UserX,       color: 'text-red-500' },
+                          { label: '중학교',      value: stats.middle,   icon: ShieldCheck, color: 'text-blue-500' },
+                        ].map(({ label, value, icon: Icon, color }) => (
+                          <div key={label} className={`p-4 rounded-2xl border ${d('bg-zinc-50 border-zinc-100','bg-zinc-800/40 border-zinc-700/50')}`}>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className={`text-xs ${muted}`}>{label}</span>
+                              <Icon className={`w-4 h-4 ${color}`} />
+                            </div>
+                            <p className="text-2xl font-bold">{value}</p>
+                          </div>
+                        ))}
+                      </div>
+
+                      {stats.pending > 0 && (
+                        <div className={`p-4 rounded-2xl border ${d('bg-amber-50 border-amber-200','bg-amber-950/20 border-amber-800/40')}`}>
+                          <div className="flex items-center gap-2 mb-3">
+                            <Clock className="w-4 h-4 text-amber-500" />
+                            <p className="text-sm font-bold text-amber-600">승인 대기 중 {stats.pending}명</p>
+                          </div>
+                          <div className="space-y-2">
+                            {allUsers.filter(u => u.status === 'pending').sort((a,b) => a.name.localeCompare(b.name,'ko')).map(user => (
+                              <div key={user.id} className="flex items-center justify-between">
+                                <span className={`text-sm ${d('text-amber-700','text-amber-300')}`}>
+                                  {getDisplayName(user)} <span className="text-xs opacity-70">({affiliationLabel(user.affiliation)})</span>
+                                </span>
+                                <div className="flex gap-1">
+                                  <button onClick={() => updateUserStatus(user.id, 'active')}
+                                    className="text-xs px-3 py-1 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold transition-colors">승인</button>
+                                  <button onClick={() => updateUserStatus(user.id, 'rejected')}
+                                    className={`text-xs px-3 py-1 rounded-xl font-semibold transition-colors ${d('bg-zinc-200 hover:bg-zinc-300 text-zinc-700','bg-zinc-700 hover:bg-zinc-600 text-zinc-300')}`}>거부</button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    // ── 중학교 / 고등학교 탭 ──
+                    <div className="p-4 space-y-3">
+                      {/* 검색 + 일괄 승인 */}
+                      <div className="flex gap-2">
+                        <div className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-2xl border transition-colors ${d('bg-zinc-50 border-zinc-200 focus-within:border-zinc-400','bg-zinc-800 border-zinc-700 focus-within:border-zinc-500')}`}>
+                          <Search className={`w-4 h-4 shrink-0 ${muted}`} />
+                          <input
+                            value={userSearch}
+                            onChange={e => setUserSearch(e.target.value)}
+                            placeholder="이름 검색..."
+                            className="flex-1 bg-transparent outline-none text-sm placeholder:text-zinc-400"
+                          />
+                          {userSearch && (
+                            <button onClick={() => setUserSearch('')} className={`${muted} hover:text-zinc-600`}>
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                        {pendingInTab.length > 0 && selectedIds.filter(id => pendingInTab.some(u => u.id === id)).length > 0 && (
+                          <button onClick={bulkApprove}
+                            className="flex items-center gap-1.5 px-4 py-2 rounded-2xl text-sm font-semibold bg-emerald-500 hover:bg-emerald-600 text-white transition-colors shadow-sm">
+                            <UserCheck className="w-4 h-4" />
+                            일괄 승인 ({selectedIds.filter(id => pendingInTab.some(u => u.id === id)).length})
+                          </button>
+                        )}
+                      </div>
+
+                      {/* 전체 선택 */}
+                      {tabUsers.length > 0 && (
+                        <div className="flex items-center gap-2 px-1">
+                          <button onClick={() => toggleSelectAll(tabUsers)} className="flex items-center gap-1.5 text-xs font-semibold">
+                            {allTabSelected
+                              ? <CheckSquare className="w-4 h-4 text-zinc-600" />
+                              : <Square className={`w-4 h-4 ${muted}`} />}
+                            <span className={muted}>전체 선택 ({tabUsers.length}명)</span>
+                          </button>
+                          {selectedIds.length > 0 && (
+                            <span className="text-xs text-zinc-500">{selectedIds.length}명 선택됨</span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* 사용자 목록 */}
+                      {tabUsers.length === 0 ? (
+                        <div className={`py-12 flex flex-col items-center gap-3 ${muted}`}>
+                          <Users className="w-10 h-10 opacity-30" />
+                          <p className="text-sm">{userSearch ? '검색 결과가 없습니다' : '등록된 사용자가 없습니다'}</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {tabUsers.map(renderUserRow)}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            </motion.div>
+          );
+        })()}
+      </AnimatePresence>
     </div>
   );
 }

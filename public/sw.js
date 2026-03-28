@@ -1,4 +1,4 @@
-const CACHE = 'gd-chatbot-v1';
+const CACHE = 'gd-chatbot-v2';
 
 self.addEventListener('install', e => {
   self.skipWaiting();

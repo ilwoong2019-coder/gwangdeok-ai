@@ -9,9 +9,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "groq-sdk": "^0.9.1",
+    "@supabase/supabase-js": "^2.100.1",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
+    "groq-sdk": "^0.9.1",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
     "pdfjs-dist": "^5.5.207",
