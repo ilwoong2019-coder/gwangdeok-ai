@@ -1,6 +1,6 @@
 {
-  "name": "광덕 AI 교육 비서",
-  "short_name": "광덕 AI",
+  "name": "광덕 AI비서",
+  "short_name": "광덕 AI비서",
   "description": "광덕 교사를 위한 AI 교육 행정 비서",
   "start_url": "/",
   "display": "standalone",
