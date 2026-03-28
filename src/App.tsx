@@ -900,8 +900,12 @@ ${contextText || '(업로드된 문서 없음)'}`;
             aria-label="사이드바"
           >
             {/* 헤더 */}
-            <div className={`flex items-center justify-between px-4 py-4 border-b ${border_c}`}>
-              <div className="flex items-center gap-2.5">
+            <div
+              className={`relative flex items-center justify-between px-4 py-4 border-b ${border_c} overflow-hidden`}
+              style={{ backgroundImage: 'url(/a.png)', backgroundSize: 'cover', backgroundPosition: 'center top' }}
+            >
+              <div className={`absolute inset-0 ${d('bg-white/88','bg-slate-950/78')}`} />
+              <div className="relative z-10 flex items-center gap-2.5">
                 <div className="w-9 h-9 bg-zinc-600 rounded-xl flex items-center justify-center shadow-md shadow-black/20">
                   <Sparkles className="w-4 h-4 text-white" />
                 </div>
@@ -911,7 +915,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
                 </div>
               </div>
               <button onClick={() => setSidebarOpen(false)} aria-label="사이드바 닫기"
-                className={`p-1.5 rounded-xl ${hover_light} transition-colors`}>
+                className={`relative z-10 p-1.5 rounded-xl ${hover_light} transition-colors`}>
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -1195,73 +1199,88 @@ ${contextText || '(업로드된 문서 없음)'}`;
         </nav>
 
         {/* 메시지 영역 */}
-        <div className="flex-1 overflow-y-auto hide-scrollbar p-4 md:p-6" role="main">
-          {messages.length === 0 ? (
-            <div className="max-w-2xl mx-auto mt-8 md:mt-12">
-              <div className="text-center mb-8">
-                <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full mb-4 text-[10px] font-bold uppercase tracking-widest ${d('bg-zinc-100 text-zinc-500 border border-zinc-200','bg-zinc-800/60 text-zinc-400 border border-zinc-700')}`}>
-                  <Sparkles className="w-3 h-3" />AI-Powered
-                </div>
-                <h2 className={`text-3xl md:text-4xl font-light tracking-tight mb-2 ${d('text-zinc-900','text-white')}`}>
-                  광덕 <span className={`font-bold ${d('text-zinc-800','text-zinc-200')}`}>교육 비서</span>
-                </h2>
-                <p className={`text-sm ${muted}`}>
-                  {hasFiles ? '아래 버튼을 클릭하거나 직접 질문을 입력하세요' : 'PDF 문서를 업로드하면 AI에게 무엇이든 질문할 수 있습니다'}
-                </p>
-              </div>
+        <div
+          className="flex-1 overflow-y-auto hide-scrollbar relative"
+          role="main"
+          style={messages.length === 0 ? {
+            backgroundImage: 'url(/a.png)',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center top',
+          } : undefined}
+        >
+          {/* 웰컴 배경 오버레이 */}
+          {messages.length === 0 && (
+            <div className="absolute inset-0 bg-gradient-to-b from-slate-950/90 via-slate-900/82 to-slate-950/94 pointer-events-none" />
+          )}
 
-              {hasFiles ? (
-                <div className="grid grid-cols-2 gap-3">
-                  {quickCards.map((item, i) => (
-                    <motion.button key={i}
-                      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: i * 0.06 }}
-                      onClick={() => sendMessage(item.q)}
-                      className={`p-4 rounded-2xl border text-left transition-all hover:shadow-lg hover:-translate-y-0.5 ${d('bg-white border-zinc-200 hover:border-zinc-400','bg-zinc-900 border-zinc-800 hover:border-zinc-600 hover:bg-zinc-800/80')}`}
-                    >
-                      <div className={`w-9 h-9 ${item.bg} rounded-xl flex items-center justify-center mb-3`}>
-                        <item.icon className={`w-4 h-4 ${item.color}`} />
-                      </div>
-                      <p className={`font-bold text-sm ${d('text-zinc-900','text-white')}`}>{item.title}</p>
-                    </motion.button>
-                  ))}
+          {messages.length === 0 ? (
+            <div className="relative z-10 p-4 md:p-6">
+              <div className="max-w-2xl mx-auto mt-8 md:mt-12">
+                <div className="text-center mb-8">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full mb-4 text-[10px] font-bold uppercase tracking-widest bg-amber-400/15 text-amber-300 border border-amber-400/25">
+                    <Sparkles className="w-3 h-3" />AI-Powered
+                  </div>
+                  <h2 className="text-3xl md:text-4xl font-light tracking-tight mb-2 text-white">
+                    광덕 <span className="font-bold text-amber-300">교육 비서</span>
+                  </h2>
+                  <p className="text-sm text-white/50">
+                    {hasFiles ? '아래 버튼을 클릭하거나 직접 질문을 입력하세요' : 'PDF 문서를 업로드하면 AI에게 무엇이든 질문할 수 있습니다'}
+                  </p>
                 </div>
-              ) : (
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                  className={`rounded-3xl border-2 border-dashed p-10 flex flex-col items-center gap-4 text-center transition-all ${
-                    devMode
-                      ? d('border-zinc-200 hover:border-zinc-400 hover:bg-zinc-100/50 cursor-pointer','border-zinc-700 hover:border-zinc-500 hover:bg-zinc-800/20 cursor-pointer')
-                      : d('border-zinc-100','border-zinc-800')
-                  }`}
-                  onClick={devMode ? requestUpload : undefined}
-                  role={devMode ? 'button' : undefined}
-                  aria-label={devMode ? 'PDF 업로드' : undefined}
-                >
-                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center ${devMode ? 'bg-zinc-600 shadow-lg shadow-black/20' : d('bg-zinc-100','bg-zinc-800')}`}>
-                    {devMode
-                      ? <Upload className="w-7 h-7 text-white" />
-                      : <Lock className={`w-7 h-7 ${d('text-zinc-400','text-zinc-600')}`} />
-                    }
+
+                {hasFiles ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    {quickCards.map((item, i) => (
+                      <motion.button key={i}
+                        initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.06 }}
+                        onClick={() => sendMessage(item.q)}
+                        className="p-4 rounded-2xl border text-left transition-all hover:shadow-xl hover:-translate-y-0.5 bg-white/5 backdrop-blur-sm border-white/10 hover:bg-white/10 hover:border-amber-400/30"
+                      >
+                        <div className="w-9 h-9 bg-amber-400/15 rounded-xl flex items-center justify-center mb-3">
+                          <item.icon className="w-4 h-4 text-amber-300" />
+                        </div>
+                        <p className="font-bold text-sm text-white">{item.title}</p>
+                      </motion.button>
+                    ))}
                   </div>
-                  <div>
-                    <p className={`font-bold text-base mb-1 ${d('text-zinc-700','text-zinc-300')}`}>
-                      {devMode ? 'PDF 문서 업로드' : '파일을 업로드해주세요'}
-                    </p>
-                    <p className={`text-sm ${muted}`}>
+                ) : (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                    className={`rounded-3xl border-2 border-dashed p-10 flex flex-col items-center gap-4 text-center transition-all backdrop-blur-sm ${
+                      devMode
+                        ? 'border-amber-400/30 hover:border-amber-400/60 hover:bg-amber-400/5 cursor-pointer'
+                        : 'border-white/10'
+                    }`}
+                    onClick={devMode ? requestUpload : undefined}
+                    role={devMode ? 'button' : undefined}
+                    aria-label={devMode ? 'PDF 업로드' : undefined}
+                  >
+                    <div className={`w-16 h-16 rounded-2xl flex items-center justify-center ${devMode ? 'bg-amber-400/20 shadow-lg shadow-amber-400/10' : 'bg-white/5'}`}>
                       {devMode
-                        ? '클릭하거나 파일을 드래그해서 업로드하세요'
-                        : '관리자가 문서를 업로드하면 이 폴더를 사용할 수 있습니다'}
-                    </p>
-                  </div>
-                  {devMode && (
-                    <p className={`text-xs ${muted}`}>PDF만 지원 · 최대 {MAX_FILE_MB}MB</p>
-                  )}
-                </motion.div>
-              )}
+                        ? <Upload className="w-7 h-7 text-amber-300" />
+                        : <Lock className="w-7 h-7 text-white/25" />
+                      }
+                    </div>
+                    <div>
+                      <p className="font-bold text-base mb-1 text-white/80">
+                        {devMode ? 'PDF 문서 업로드' : '파일을 업로드해주세요'}
+                      </p>
+                      <p className="text-sm text-white/40">
+                        {devMode
+                          ? '클릭하거나 파일을 드래그해서 업로드하세요'
+                          : '관리자가 문서를 업로드하면 이 폴더를 사용할 수 있습니다'}
+                      </p>
+                    </div>
+                    {devMode && (
+                      <p className="text-xs text-white/25">PDF만 지원 · 최대 {MAX_FILE_MB}MB</p>
+                    )}
+                  </motion.div>
+                )}
+              </div>
             </div>
           ) : (
-            <div className="max-w-3xl mx-auto space-y-6" aria-live="polite" aria-label="대화 내용">
+            <div className="p-4 md:p-6 max-w-3xl mx-auto space-y-6" aria-live="polite" aria-label="대화 내용">
               {messages.map((m, i) => (
                 <motion.div key={i}
                   initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
