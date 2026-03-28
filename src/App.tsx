@@ -7,7 +7,7 @@ import {
   ZoomIn, ZoomOut, ArrowUp, Share2, Folder,
   RefreshCw, Bot, User, Loader2, AlertCircle, Sparkles,
   MessageSquare, FileSearch, LayoutGrid, Paperclip,
-  Lock, LockOpen, Printer, AlertTriangle,
+  Lock, LockOpen, Printer, AlertTriangle, Settings2, Pencil,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -118,6 +118,10 @@ export default function App() {
   const [showFolderPicker, setShowFolderPicker] = useState(false);
   const [confirmDlg,     setConfirmDlg]    = useState<ConfirmDlg | null>(null);
   const [ctxWarning,     setCtxWarning]    = useState(false);
+  const [mgmtFolderId,   setMgmtFolderId]  = useState<string | null>(null);
+  const [editingFile,    setEditingFile]   = useState<{ id: string; name: string } | null>(null);
+  const [editFolderName, setEditFolderName] = useState('');
+  const [editingFolderName, setEditingFolderName] = useState(false);
 
   // Refs
   const fileRef      = useRef<HTMLInputElement>(null);
@@ -385,11 +389,37 @@ ${contextText}`;
     });
   };
 
-  const deleteFile = (fileId: string) => {
+  const deleteFile = (fileId: string, targetFolderId?: string) => {
     if (!devMode) { setError('파일 삭제는 관리자만 가능합니다.'); return; }
+    const tid = targetFolderId ?? folderId;
     setFolders(prev => prev.map(f =>
-      f.id === folderId ? { ...f, files: f.files.filter(fl => fl.id !== fileId) } : f
+      f.id === tid ? { ...f, files: f.files.filter(fl => fl.id !== fileId) } : f
     ));
+  };
+
+  const renameFile = (targetFolderId: string, fileId: string, newName: string) => {
+    const trimmed = newName.trim();
+    if (!trimmed) { setEditingFile(null); return; }
+    setFolders(prev => prev.map(f =>
+      f.id === targetFolderId
+        ? { ...f, files: f.files.map(fl => fl.id === fileId ? { ...fl, name: trimmed } : fl) }
+        : f
+    ));
+    setEditingFile(null);
+  };
+
+  const renameFolder = (id: string, newName: string) => {
+    const trimmed = newName.trim();
+    if (!trimmed) { setEditingFolderName(false); return; }
+    setFolders(prev => prev.map(f => f.id === id ? { ...f, name: trimmed } : f));
+    setEditingFolderName(false);
+  };
+
+  const openFolderMgmt = (f: FolderData) => {
+    setMgmtFolderId(f.id);
+    setEditFolderName(f.name);
+    setEditingFolderName(false);
+    setEditingFile(null);
   };
 
   // ── 대화 관리 ─────────────────────────────────────────────
@@ -594,6 +624,137 @@ ${contextText}`;
             </motion.div>
           </motion.div>
         )}
+      </AnimatePresence>
+
+      {/* ── 폴더 관리 모달 ── */}
+      <AnimatePresence>
+        {mgmtFolderId && (() => {
+          const mf = folders.find(f => f.id === mgmtFolderId);
+          if (!mf) return null;
+          const approxPages = (chars: number) => Math.max(1, Math.round(chars / 1500));
+          return (
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+              onClick={() => { setMgmtFolderId(null); setEditingFile(null); setEditingFolderName(false); }}
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0, y: 8 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.95, opacity: 0, y: 8 }}
+                onClick={e => e.stopPropagation()}
+                className={`${card} w-full max-w-md rounded-3xl shadow-2xl flex flex-col overflow-hidden`}
+                style={{ maxHeight: '80vh' }}
+                role="dialog" aria-modal="true" aria-label="폴더 관리"
+              >
+                {/* 헤더 */}
+                <div className={`flex items-center gap-3 px-5 py-4 border-b ${border_c} shrink-0`}>
+                  <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center shrink-0 shadow-md shadow-blue-500/30">
+                    <Folder className="w-4 h-4 text-white" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    {editingFolderName ? (
+                      <input
+                        autoFocus
+                        value={editFolderName}
+                        onChange={e => setEditFolderName(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') renameFolder(mf.id, editFolderName);
+                          if (e.key === 'Escape') setEditingFolderName(false);
+                        }}
+                        onBlur={() => renameFolder(mf.id, editFolderName)}
+                        className={`w-full text-sm font-bold px-2 py-1 rounded-lg border outline-none ${d('border-blue-400 bg-blue-50','border-blue-500 bg-blue-950/30')}`}
+                        aria-label="폴더 이름 수정"
+                      />
+                    ) : (
+                      <button
+                        onClick={() => { setEditFolderName(mf.name); setEditingFolderName(true); }}
+                        className={`flex items-center gap-1.5 group text-left`}
+                        aria-label="폴더 이름 수정"
+                        title="클릭하여 이름 수정"
+                      >
+                        <span className="text-sm font-bold truncate">{mf.name}</span>
+                        <Pencil className={`w-3 h-3 shrink-0 opacity-0 group-hover:opacity-60 transition-opacity ${muted}`} />
+                      </button>
+                    )}
+                    <p className={`text-[10px] ${muted}`}>파일 {mf.files.length}개</p>
+                  </div>
+                  <button
+                    onClick={() => { setMgmtFolderId(null); setEditingFile(null); setEditingFolderName(false); }}
+                    aria-label="관리 창 닫기"
+                    className={`p-1.5 rounded-xl ${hover_light} transition-colors shrink-0`}
+                  ><X className="w-4 h-4" /></button>
+                </div>
+
+                {/* 파일 목록 */}
+                <div className="flex-1 overflow-y-auto hide-scrollbar p-4 space-y-2">
+                  {mf.files.length === 0 ? (
+                    <div className={`py-12 flex flex-col items-center gap-3 ${muted}`}>
+                      <FileText className="w-10 h-10 opacity-30" />
+                      <p className="text-sm">이 폴더에 파일이 없습니다</p>
+                    </div>
+                  ) : mf.files.map(fl => (
+                    <div key={fl.id}
+                      className={`flex items-start gap-3 p-3 rounded-2xl border transition-all ${d('border-gray-100 hover:border-gray-200 bg-gray-50/50','border-gray-700/50 hover:border-gray-600 bg-gray-800/30')}`}
+                    >
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${d('bg-blue-50','bg-blue-950/40')}`}>
+                        <FileText className="w-4 h-4 text-blue-500" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        {editingFile?.id === fl.id ? (
+                          <input
+                            autoFocus
+                            value={editingFile.name}
+                            onChange={e => setEditingFile({ id: fl.id, name: e.target.value })}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') renameFile(mf.id, fl.id, editingFile.name);
+                              if (e.key === 'Escape') setEditingFile(null);
+                            }}
+                            onBlur={() => renameFile(mf.id, fl.id, editingFile.name)}
+                            className={`w-full text-sm font-medium px-2 py-0.5 rounded-lg border outline-none ${d('border-blue-400 bg-blue-50','border-blue-500 bg-blue-950/30')}`}
+                            aria-label="파일 이름 수정"
+                          />
+                        ) : (
+                          <button
+                            onClick={() => setEditingFile({ id: fl.id, name: fl.name })}
+                            className="flex items-center gap-1.5 group text-left w-full"
+                            title="클릭하여 이름 수정"
+                            aria-label={`${fl.name} 이름 수정`}
+                          >
+                            <span className={`text-sm font-medium truncate ${d('text-gray-800','text-gray-200')}`}>{fl.name}</span>
+                            <Pencil className={`w-3 h-3 shrink-0 opacity-0 group-hover:opacity-60 transition-opacity ${muted}`} />
+                          </button>
+                        )}
+                        <p className={`text-[10px] mt-0.5 ${muted}`}>
+                          약 {approxPages(fl.text.length)}페이지 · {(fl.text.length / 1000).toFixed(0)}K자
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => askConfirm(`"${fl.name}"을 삭제할까요?`, () => deleteFile(fl.id, mf.id))}
+                        aria-label={`${fl.name} 삭제`}
+                        className={`p-1.5 rounded-xl shrink-0 transition-colors ${d('hover:bg-red-50 text-gray-400 hover:text-red-500','hover:bg-red-950/30 text-gray-600 hover:text-red-400')}`}
+                      ><Trash2 className="w-3.5 h-3.5" /></button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* 하단 버튼 */}
+                <div className={`px-4 py-3 border-t ${border_c} shrink-0`}>
+                  <button
+                    onClick={() => {
+                      setMgmtFolderId(null);
+                      uploadTarget.current = mf.id;
+                      droppedFiles.current = [];
+                      setTimeout(() => fileRef.current?.click(), 100);
+                    }}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white transition-colors shadow-md shadow-blue-500/20"
+                    aria-label="파일 추가"
+                  >
+                    <Plus className="w-4 h-4" />파일 추가
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          );
+        })()}
       </AnimatePresence>
 
       {/* ── 폴더 선택 모달 ── */}
@@ -804,12 +965,21 @@ ${contextText}`;
                         }`}>{f.files.length}</span>
                       )}
                     </div>
-                    {devMode && folders.length > 1 && (
-                      <button
-                        onClick={e => { e.stopPropagation(); deleteFolder(f.id); }}
-                        aria-label={`${f.name} 폴더 삭제`}
-                        className={`opacity-0 group-hover:opacity-100 p-0.5 rounded transition-opacity ${f.id === folderId ? 'hover:bg-white/20' : hover_light}`}
-                      ><Trash2 className="w-3.5 h-3.5" /></button>
+                    {devMode && (
+                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={e => { e.stopPropagation(); openFolderMgmt(f); }}
+                          aria-label={`${f.name} 폴더 관리`}
+                          className={`p-0.5 rounded transition-colors ${f.id === folderId ? 'hover:bg-white/20' : hover_light}`}
+                        ><Settings2 className="w-3.5 h-3.5" /></button>
+                        {folders.length > 1 && (
+                          <button
+                            onClick={e => { e.stopPropagation(); deleteFolder(f.id); }}
+                            aria-label={`${f.name} 폴더 삭제`}
+                            className={`p-0.5 rounded transition-colors ${f.id === folderId ? 'hover:bg-white/20' : hover_light}`}
+                          ><Trash2 className="w-3.5 h-3.5" /></button>
+                        )}
+                      </div>
                     )}
                   </div>
                 ))}
