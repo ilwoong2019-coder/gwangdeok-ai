@@ -1086,7 +1086,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
         {confirmDlg && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+            className="fixed inset-0 z-[90] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
             onClick={() => setConfirmDlg(null)}
           >
             <motion.div
