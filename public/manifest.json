@@ -1,7 +1,7 @@
 {
-  "name": "광덕고 AI 기반 교육 업무 비서",
-  "short_name": "교육 업무 비서",
-  "description": "광덕고등학교 AI 기반 교육 업무 비서",
+  "name": "광덕 AI 교육 비서",
+  "short_name": "광덕 AI",
+  "description": "광덕 교사를 위한 AI 교육 행정 비서",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

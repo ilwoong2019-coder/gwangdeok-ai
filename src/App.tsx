@@ -8,6 +8,7 @@ import {
   ZoomIn, ZoomOut, ArrowUp, History, Share2, Folder,
   RefreshCw, Bot, User, Loader2, AlertCircle, Sparkles,
   MessageSquare, FileSearch, LayoutGrid, Paperclip,
+  Lock, LockOpen,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -23,6 +24,7 @@ interface Message { role: 'user' | 'bot'; content: string; ts: number; }
 
 // ── Constants ─────────────────────────────────────────────
 const MODEL = 'gemini-2.0-flash';
+const DEV_PASSWORD = 'gwangdeok2026'; // 관리자 비밀번호 (변경 가능)
 const LS = {
   folders:  'gd2-folders',
   folderId: 'gd2-folder',
@@ -61,6 +63,10 @@ export default function App() {
   const [newName,    setNewName]    = useState('');
   const [addingFolder, setAddingFolder] = useState(false);
   const [listening,  setListening]  = useState(false);
+  const [devMode,    setDevMode]    = useState(() => sessionStorage.getItem('gd-dev') === '1');
+  const [showDevModal, setShowDevModal] = useState(false);
+  const [devPwInput,   setDevPwInput]   = useState('');
+  const [devPwError,   setDevPwError]   = useState(false);
 
   const fileRef   = useRef<HTMLInputElement>(null);
   const endRef    = useRef<HTMLDivElement>(null);
@@ -144,6 +150,7 @@ export default function App() {
   };
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault(); setDrag(false);
+    if (!devMode) { setError('파일 업로드는 관리자만 가능합니다.'); return; }
     if (e.dataTransfer?.files?.length) uploadFiles(Array.from(e.dataTransfer.files));
   };
 
@@ -161,7 +168,7 @@ export default function App() {
         addBot('현재 폴더에 파일이 없습니다. 왼쪽 사이드바에서 PDF를 먼저 업로드해주세요.');
         return;
       }
-      const system = `당신은 광덕고 교사들을 돕는 교육 행정 AI 비서입니다.
+      const system = `당신은 광덕 교사들을 돕는 교육 행정 AI 비서입니다.
 현재 폴더: "${folder?.name}"
 
 [답변 원칙]
@@ -263,6 +270,31 @@ ${ctx.substring(0, 30000)}`;
     setShareOk(true); setTimeout(() => setShareOk(false), 2500);
   };
 
+  // ── Dev mode ─────────────────────────────────────────────
+  const requestUpload = () => {
+    if (devMode) { fileRef.current?.click(); return; }
+    setShowDevModal(true);
+  };
+
+  const confirmDevPassword = () => {
+    if (devPwInput === DEV_PASSWORD) {
+      setDevMode(true);
+      sessionStorage.setItem('gd-dev', '1');
+      setShowDevModal(false);
+      setDevPwInput('');
+      setDevPwError(false);
+      setTimeout(() => fileRef.current?.click(), 100);
+    } else {
+      setDevPwError(true);
+      setDevPwInput('');
+    }
+  };
+
+  const exitDevMode = () => {
+    setDevMode(false);
+    sessionStorage.removeItem('gd-dev');
+  };
+
   // ── Voice input ───────────────────────────────────────────
   const toggleVoice = () => {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -350,6 +382,57 @@ ${ctx.substring(0, 30000)}`;
         )}
       </AnimatePresence>
 
+      {/* ── Dev password modal ── */}
+      <AnimatePresence>
+        {showDevModal && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => { setShowDevModal(false); setDevPwInput(''); setDevPwError(false); }}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+              onClick={e => e.stopPropagation()}
+              className={`${card} w-full max-w-sm rounded-3xl shadow-2xl p-6`}
+            >
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-10 h-10 bg-blue-600 rounded-2xl flex items-center justify-center">
+                  <Lock className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <p className="font-bold">관리자 인증</p>
+                  <p className={`text-xs ${muted}`}>파일 업로드 권한이 필요합니다</p>
+                </div>
+              </div>
+              <input
+                autoFocus
+                type="password"
+                value={devPwInput}
+                onChange={e => { setDevPwInput(e.target.value); setDevPwError(false); }}
+                onKeyDown={e => e.key === 'Enter' && confirmDevPassword()}
+                placeholder="비밀번호 입력..."
+                className={`w-full px-4 py-3 rounded-2xl border outline-none text-sm mb-2 ${
+                  devPwError
+                    ? 'border-red-400 bg-red-50 text-red-700'
+                    : d('border-gray-200 bg-gray-50 focus:border-blue-400','border-gray-700 bg-gray-800 focus:border-blue-500')
+                }`}
+              />
+              {devPwError && <p className="text-xs text-red-500 mb-3 px-1">비밀번호가 틀렸습니다.</p>}
+              <div className="flex gap-2 mt-4">
+                <button
+                  onClick={() => { setShowDevModal(false); setDevPwInput(''); setDevPwError(false); }}
+                  className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold ${d('bg-gray-100 hover:bg-gray-200 text-gray-700','bg-gray-700 hover:bg-gray-600 text-gray-300')}`}
+                >취소</button>
+                <button
+                  onClick={confirmDevPassword}
+                  className="flex-1 py-2.5 rounded-2xl text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white"
+                >확인</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ── History modal ── */}
       <AnimatePresence>
         {showHistory && (
@@ -427,7 +510,7 @@ ${ctx.substring(0, 30000)}`;
                   <Sparkles className="w-4 h-4 text-white" />
                 </div>
                 <div>
-                  <p className="text-sm font-bold leading-tight">광덕고 AI 비서</p>
+                  <p className="text-sm font-bold leading-tight">광덕 AI 비서</p>
                   <p className={`text-[10px] ${muted}`}>교육 행정 어시스턴트</p>
                 </div>
               </div>
@@ -508,25 +591,34 @@ ${ctx.substring(0, 30000)}`;
               <div className="p-3 pt-0">
                 <div className="flex items-center justify-between mb-2 px-1">
                   <p className={`text-[11px] font-semibold uppercase tracking-wider ${muted}`}>파일</p>
-                  <button
-                    onClick={() => fileRef.current?.click()}
-                    className={`p-1 rounded-lg ${hover_light}`}
-                    title="PDF 업로드"
-                  >
-                    <Plus className="w-4 h-4 text-blue-500" />
-                  </button>
+                  {devMode && (
+                    <button
+                      onClick={requestUpload}
+                      className={`p-1 rounded-lg ${hover_light}`}
+                      title="PDF 업로드"
+                    >
+                      <Plus className="w-4 h-4 text-blue-500" />
+                    </button>
+                  )}
                 </div>
                 <input ref={fileRef} type="file" accept=".pdf" multiple className="hidden" onChange={e => { if (e.target.files?.length) uploadFiles(Array.from(e.target.files)); }} />
 
                 {(folder?.files ?? []).length === 0 ? (
-                  <button
-                    onClick={() => fileRef.current?.click()}
-                    className={`w-full py-6 rounded-2xl border-2 border-dashed flex flex-col items-center gap-2 transition-all ${d('border-gray-200 hover:border-blue-300 text-gray-400 hover:text-blue-500','border-gray-700 hover:border-blue-600 text-gray-600 hover:text-blue-400')}`}
-                  >
-                    <Upload className="w-6 h-6" />
-                    <span className="text-xs font-medium">PDF 업로드</span>
-                    <span className={`text-[10px] ${muted}`}>클릭 또는 드래그</span>
-                  </button>
+                  devMode ? (
+                    <button
+                      onClick={requestUpload}
+                      className={`w-full py-6 rounded-2xl border-2 border-dashed flex flex-col items-center gap-2 transition-all ${d('border-gray-200 hover:border-blue-300 text-gray-400 hover:text-blue-500','border-gray-700 hover:border-blue-600 text-gray-600 hover:text-blue-400')}`}
+                    >
+                      <Upload className="w-6 h-6" />
+                      <span className="text-xs font-medium">PDF 업로드</span>
+                      <span className={`text-[10px] ${muted}`}>클릭 또는 드래그</span>
+                    </button>
+                  ) : (
+                    <div className={`w-full py-6 rounded-2xl border-2 border-dashed flex flex-col items-center gap-2 ${d('border-gray-100 text-gray-300','border-gray-800 text-gray-700')}`}>
+                      <Lock className="w-6 h-6" />
+                      <span className="text-xs font-medium">관리자 전용</span>
+                    </div>
+                  )
                 ) : (
                   <div className="space-y-1">
                     {folder.files.map(fl => (
@@ -542,12 +634,14 @@ ${ctx.substring(0, 30000)}`;
                         </button>
                       </div>
                     ))}
-                    <button
-                      onClick={() => fileRef.current?.click()}
-                      className={`w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium text-blue-500 ${d('hover:bg-blue-50','hover:bg-blue-950/30')} transition-all`}
-                    >
-                      <Plus className="w-3.5 h-3.5" />파일 추가
-                    </button>
+                    {devMode && (
+                      <button
+                        onClick={requestUpload}
+                        className={`w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium text-blue-500 ${d('hover:bg-blue-50','hover:bg-blue-950/30')} transition-all`}
+                      >
+                        <Plus className="w-3.5 h-3.5" />파일 추가
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -593,6 +687,20 @@ ${ctx.substring(0, 30000)}`;
                   )}
                 </AnimatePresence>
               </div>
+              {/* Dev mode toggle */}
+              <button
+                onClick={() => devMode ? exitDevMode() : setShowDevModal(true)}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-all ${devMode ? d('bg-green-50 hover:bg-green-100','bg-green-950/30 hover:bg-green-950/50') : hover_light}`}
+              >
+                <span className={`text-xs font-medium ${devMode ? 'text-green-600' : muted}`}>
+                  {devMode ? '관리자 모드 활성' : '관리자 로그인'}
+                </span>
+                {devMode ? <LockOpen className="w-4 h-4 text-green-500" /> : <Lock className={`w-4 h-4 ${muted}`} />}
+              </button>
+              {/* Copyright */}
+              <p className={`text-[9px] text-center px-3 py-1 ${muted} opacity-60`}>
+                © 2026 광덕고등학교 조일웅 All Rights Reserved
+              </p>
             </div>
           </motion.aside>
         )}
@@ -655,7 +763,7 @@ ${ctx.substring(0, 30000)}`;
                 <Sparkles className="w-3 h-3" />AI-Powered
               </div>
               <h1 className={`text-4xl font-light tracking-tight mb-3 ${d('text-gray-900','text-white')}`}>
-                광덕고 <span className="font-bold text-blue-600">교육 비서</span>
+                광덕 <span className="font-bold text-blue-600">교육 비서</span>
               </h1>
               <p className={`text-sm mb-8 ${muted}`}>PDF 문서를 업로드하고 AI에게 무엇이든 물어보세요</p>
               <div className="grid grid-cols-2 gap-3 text-left">
@@ -769,13 +877,13 @@ ${ctx.substring(0, 30000)}`;
               'bg-gray-50 border-gray-200 focus-within:border-blue-400 focus-within:bg-white',
               'bg-gray-800 border-gray-700 focus-within:border-blue-500'
             )}`}>
-              {/* Attach PDF */}
+              {/* Attach PDF (관리자만) */}
               <button
-                onClick={() => fileRef.current?.click()}
+                onClick={requestUpload}
                 className={`shrink-0 p-1.5 rounded-xl ${hover_light} mb-0.5`}
-                title="PDF 업로드"
+                title={devMode ? 'PDF 업로드' : '관리자 전용'}
               >
-                <Paperclip className="w-4 h-4 text-blue-500" />
+                <Paperclip className={`w-4 h-4 ${devMode ? 'text-blue-500' : muted}`} />
               </button>
               {/* Textarea */}
               <textarea
