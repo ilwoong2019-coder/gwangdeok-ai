@@ -11,8 +11,10 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc =
-  `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.mjs',
+  import.meta.url
+).toString();
 
 // ── Types ─────────────────────────────────────────────────
 interface FileData { id: string; name: string; text: string; }
