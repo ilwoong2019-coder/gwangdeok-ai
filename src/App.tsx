@@ -33,18 +33,19 @@ interface ConfirmDlg { msg: string; onConfirm: () => void; }
 type UserStatus  = 'pending' | 'active' | 'inactive' | 'rejected';
 type Affiliation = 'middle' | 'high';
 interface AppUser {
-  id:            string;
-  name:          string;
-  affiliation:   Affiliation;
-  password_hash: string;
-  status:        UserStatus;
-  created_at:    string;
-  approved_at?:  string;
+  id:             string;
+  name:           string;
+  affiliation:    Affiliation;
+  password_hash?: string;   // localStorage 세션에는 저장하지 않음
+  status:         UserStatus;
+  created_at:     string;
+  approved_at?:   string;
 }
 
 // ── Constants ─────────────────────────────────────────────
 const MODEL            = 'llama-3.3-70b-versatile';
-const DEV_PASSWORD     = 'ilwoong11!';
+const DEV_PASSWORD     = (import.meta as any).env?.VITE_ADMIN_PASSWORD as string || 'ilwoong11!';
+const PW_SALT          = 'gwangdeok-ai-2026-secure';
 const MAX_FILE_MB      = 20;
 const MAX_CONTEXT_CHARS = 28000;
 const MAX_HISTORY_MSGS = 20; // 최근 10턴
@@ -89,9 +90,9 @@ async function sbSaveFolders(folders: FolderData[]): Promise<void> {
   } catch (e) { console.error('Supabase 동기화 오류:', e); }
 }
 
-// ── 비밀번호 해시 (SHA-256) ───────────────────────────────────
+// ── 비밀번호 해시 (SHA-256 + 고정 솔트) ─────────────────────
 async function hashPassword(pw: string): Promise<string> {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pw));
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(PW_SALT + pw));
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
@@ -697,7 +698,8 @@ ${contextText || '(업로드된 문서 없음)'}`;
       const hash = await hashPassword(loginPw);
       const user = await sbFindUser(loginName.trim(), loginAffil, hash);
       if (!user) { setAuthError('이름, 소속 또는 비밀번호가 일치하지 않습니다.'); return; }
-      try { localStorage.setItem(LS.user, JSON.stringify(user)); } catch {}
+      const { password_hash: _l, ...safeUser } = user;
+      try { localStorage.setItem(LS.user, JSON.stringify(safeUser)); } catch {}
       setCurrentUser(user);
       if (user.status === 'active')        setAuthView('app');
       else if (user.status === 'pending')  setAuthView('pending');
@@ -718,7 +720,8 @@ ${contextText || '(업로드된 문서 없음)'}`;
       if (existing) { setAuthError('이미 가입된 계정입니다.'); return; }
       const user = await sbRegisterUser(regName.trim(), regAffil, hash);
       if (!user) { setAuthError('가입 신청 중 오류가 발생했습니다. 다시 시도해주세요.'); return; }
-      try { localStorage.setItem(LS.user, JSON.stringify(user)); } catch {}
+      const { password_hash: _r, ...safeUser } = user;
+      try { localStorage.setItem(LS.user, JSON.stringify(safeUser)); } catch {}
       setCurrentUser(user);
       setAuthView('pending');
     } finally { setAuthLoading(false); }
