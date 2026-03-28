@@ -974,13 +974,32 @@ ${contextText || '(업로드된 문서 없음)'}`;
                 {isReg ? '가입 신청하기' : '로그인'}
               </button>
 
-              <div className="text-center">
+              <div className="text-center space-y-2">
                 <button
                   onClick={() => { setAuthView(isReg ? 'login' : 'register'); setAuthError(''); setRegPw(''); setRegPwConfirm(''); }}
                   className={`text-xs underline underline-offset-2 ${muted}`}
                 >
                   {isReg ? '이미 계정이 있으신가요? 로그인' : '처음이신가요? 가입 신청'}
                 </button>
+                {!isReg && (
+                  <div>
+                    <button
+                      onClick={() => {
+                        const pw = prompt('관리자 비밀번호를 입력하세요:');
+                        if (pw === DEV_PASSWORD) {
+                          setDevMode(true);
+                          sessionStorage.setItem('gd-dev', '1');
+                          setAuthInitialized(true);
+                        } else if (pw !== null) {
+                          setAuthError('관리자 비밀번호가 틀렸습니다.');
+                        }
+                      }}
+                      className={`text-xs ${muted} opacity-50 hover:opacity-100 transition-opacity`}
+                    >
+                      관리자 입장
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </motion.div>
