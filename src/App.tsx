@@ -67,6 +67,8 @@ export default function App() {
   const [showDevModal, setShowDevModal] = useState(false);
   const [devPwInput,   setDevPwInput]   = useState('');
   const [devPwError,   setDevPwError]   = useState(false);
+  const [showFolderPicker, setShowFolderPicker] = useState(false);
+  const [uploadTarget,     setUploadTarget]     = useState<string>('');
 
   const fileRef   = useRef<HTMLInputElement>(null);
   const endRef    = useRef<HTMLDivElement>(null);
@@ -117,9 +119,10 @@ export default function App() {
   };
 
   // ── File upload ───────────────────────────────────────────
-  const uploadFiles = async (files: File[]) => {
+  const uploadFiles = async (files: File[], targetId?: string) => {
     const pdfs = files.filter(f => f.type === 'application/pdf');
     if (!pdfs.length) { setError('PDF 파일만 업로드 가능합니다.'); return; }
+    const tid = targetId ?? folderId;
     setProcessing(true); setError(null);
     try {
       const added: FileData[] = [];
@@ -128,13 +131,17 @@ export default function App() {
         added.push({ id: crypto.randomUUID(), name: f.name, text });
       }
       setFolders(prev => prev.map(f =>
-        f.id === folderId ? { ...f, files: [...f.files, ...added] } : f
+        f.id === tid ? { ...f, files: [...f.files, ...added] } : f
       ));
-      addBot(`✅ **${folder?.name ?? '폴더'}**에 ${added.length}개 파일이 추가됐습니다.\n\n${added.map(f => `• \`${f.name}\``).join('\n')}\n\n문서에 대해 자유롭게 질문해주세요!`);
+      // 업로드한 폴더로 자동 이동
+      setFolderId(tid);
+      const targetFolder = folders.find(f => f.id === tid);
+      addBot(`✅ **${targetFolder?.name ?? '폴더'}**에 ${added.length}개 파일이 추가됐습니다.\n\n${added.map(f => `• \`${f.name}\``).join('\n')}\n\n이제 이 폴더의 문서에 대해 자유롭게 질문해주세요!`);
     } catch (e: any) {
       setError(e.message ?? '파일 처리 오류');
     } finally {
       setProcessing(false);
+      setUploadTarget('');
       if (fileRef.current) fileRef.current.value = '';
     }
   };
@@ -151,7 +158,7 @@ export default function App() {
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault(); setDrag(false);
     if (!devMode) { setError('파일 업로드는 관리자만 가능합니다.'); return; }
-    if (e.dataTransfer?.files?.length) uploadFiles(Array.from(e.dataTransfer.files));
+    if (e.dataTransfer?.files?.length) uploadFiles(Array.from(e.dataTransfer.files), folderId);
   };
 
   // ── Send message ──────────────────────────────────────────
@@ -272,8 +279,13 @@ ${ctx.substring(0, 30000)}`;
 
   // ── Dev mode ─────────────────────────────────────────────
   const requestUpload = () => {
-    if (devMode) { fileRef.current?.click(); return; }
-    setShowDevModal(true);
+    if (!devMode) { setShowDevModal(true); return; }
+    if (folders.length > 1) {
+      setShowFolderPicker(true);
+    } else {
+      setUploadTarget(folders[0].id);
+      fileRef.current?.click();
+    }
   };
 
   const confirmDevPassword = () => {
@@ -378,6 +390,61 @@ ${ctx.substring(0, 30000)}`;
               <p className="font-bold">PDF 분석 중...</p>
               <p className={`text-sm ${muted}`}>텍스트를 추출하고 있습니다</p>
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Folder picker modal ── */}
+      <AnimatePresence>
+        {showFolderPicker && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setShowFolderPicker(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+              onClick={e => e.stopPropagation()}
+              className={`${card} w-full max-w-sm rounded-3xl shadow-2xl p-6`}
+            >
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-10 h-10 bg-blue-600 rounded-2xl flex items-center justify-center">
+                  <Folder className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <p className="font-bold">폴더 선택</p>
+                  <p className={`text-xs ${muted}`}>파일을 추가할 폴더를 선택하세요</p>
+                </div>
+              </div>
+              <div className="space-y-2 mb-4">
+                {folders.map(f => (
+                  <button
+                    key={f.id}
+                    onClick={() => {
+                      setUploadTarget(f.id);
+                      setShowFolderPicker(false);
+                      setTimeout(() => fileRef.current?.click(), 100);
+                    }}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl border text-left transition-all ${
+                      f.id === folderId
+                        ? 'border-blue-500 bg-blue-50 text-blue-700'
+                        : d('border-gray-200 hover:border-blue-300 hover:bg-blue-50','border-gray-700 hover:border-blue-600 hover:bg-blue-950/20')
+                    }`}
+                  >
+                    <Folder className={`w-4 h-4 shrink-0 ${f.id === folderId ? 'text-blue-600' : 'text-gray-400'}`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold truncate">{f.name}</p>
+                      <p className={`text-[10px] ${muted}`}>파일 {f.files.length}개</p>
+                    </div>
+                    {f.id === folderId && <Check className="w-4 h-4 text-blue-600 shrink-0" />}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => setShowFolderPicker(false)}
+                className={`w-full py-2.5 rounded-2xl text-sm font-semibold ${d('bg-gray-100 hover:bg-gray-200 text-gray-700','bg-gray-700 hover:bg-gray-600 text-gray-300')}`}
+              >취소</button>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -601,7 +668,7 @@ ${ctx.substring(0, 30000)}`;
                     </button>
                   )}
                 </div>
-                <input ref={fileRef} type="file" accept=".pdf" multiple className="hidden" onChange={e => { if (e.target.files?.length) uploadFiles(Array.from(e.target.files)); }} />
+                <input ref={fileRef} type="file" accept=".pdf" multiple className="hidden" onChange={e => { if (e.target.files?.length) uploadFiles(Array.from(e.target.files), uploadTarget || folderId); }} />
 
                 {(folder?.files ?? []).length === 0 ? (
                   devMode ? (
