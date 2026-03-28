@@ -544,7 +544,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
         {drag && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-zinc-800/90 backdrop-blur-sm flex items-center justify-center pointer-events-none"
+            className="fixed inset-0 z-50 bg-zinc-700/90 backdrop-blur-sm flex items-center justify-center pointer-events-none"
           >
             <div className="border-4 border-dashed border-white/60 rounded-[48px] p-16 text-center text-white">
               <Upload className="w-16 h-16 mx-auto mb-4" />
@@ -650,7 +650,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
               >
                 {/* 헤더 */}
                 <div className={`flex items-center gap-3 px-5 py-4 border-b ${border_c} shrink-0`}>
-                  <div className="w-9 h-9 bg-zinc-800 rounded-xl flex items-center justify-center shrink-0 shadow-md shadow-black/20">
+                  <div className="w-9 h-9 bg-zinc-600 rounded-xl flex items-center justify-center shrink-0 shadow-md shadow-black/20">
                     <Folder className="w-4 h-4 text-white" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -748,7 +748,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
                       droppedFiles.current = [];
                       setTimeout(() => fileRef.current?.click(), 100);
                     }}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl text-sm font-semibold bg-zinc-800 hover:bg-zinc-900 text-white transition-colors shadow-md shadow-black/15"
+                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl text-sm font-semibold bg-zinc-600 hover:bg-zinc-700 text-white transition-colors shadow-md shadow-black/15"
                     aria-label="파일 추가"
                   >
                     <Plus className="w-4 h-4" />파일 추가
@@ -775,7 +775,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
               role="dialog" aria-modal="true" aria-label="폴더 선택"
             >
               <div className="flex items-center gap-3 mb-5">
-                <div className="w-10 h-10 bg-zinc-800 rounded-2xl flex items-center justify-center shadow-lg shadow-black/20">
+                <div className="w-10 h-10 bg-zinc-600 rounded-2xl flex items-center justify-center shadow-lg shadow-black/20">
                   <Folder className="w-5 h-5 text-white" />
                 </div>
                 <div>
@@ -801,7 +801,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
                         : d('border-zinc-200 hover:border-zinc-300 hover:bg-zinc-100/50','border-zinc-700 hover:border-zinc-600 hover:bg-zinc-800/20')
                     }`}
                   >
-                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${f.id === folderId ? 'bg-zinc-800' : d('bg-zinc-100','bg-zinc-700')}`}>
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${f.id === folderId ? 'bg-zinc-600' : d('bg-zinc-100','bg-zinc-700')}`}>
                       <Folder className={`w-4 h-4 ${f.id === folderId ? 'text-white' : 'text-zinc-400'}`} />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -836,7 +836,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
               role="dialog" aria-modal="true" aria-label="관리자 인증"
             >
               <div className="flex items-center gap-3 mb-5">
-                <div className="w-10 h-10 bg-zinc-800 rounded-2xl flex items-center justify-center shadow-lg shadow-black/20">
+                <div className="w-10 h-10 bg-zinc-600 rounded-2xl flex items-center justify-center shadow-lg shadow-black/20">
                   <Lock className="w-5 h-5 text-white" />
                 </div>
                 <div>
@@ -867,7 +867,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
                   className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-colors ${d('bg-zinc-100 hover:bg-zinc-200 text-zinc-700','bg-zinc-700 hover:bg-zinc-600 text-zinc-300')}`}
                 >취소</button>
                 <button onClick={confirmDevPassword}
-                  className="flex-1 py-2.5 rounded-2xl text-sm font-semibold bg-zinc-800 hover:bg-zinc-900 text-white transition-colors shadow-md shadow-black/15"
+                  className="flex-1 py-2.5 rounded-2xl text-sm font-semibold bg-zinc-600 hover:bg-zinc-700 text-white transition-colors shadow-md shadow-black/15"
                 >확인</button>
               </div>
             </motion.div>
@@ -902,7 +902,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
             {/* 헤더 */}
             <div className={`flex items-center justify-between px-4 py-4 border-b ${border_c}`}>
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 bg-zinc-800 rounded-xl flex items-center justify-center shadow-md shadow-black/20">
+                <div className="w-9 h-9 bg-zinc-600 rounded-xl flex items-center justify-center shadow-md shadow-black/20">
                   <Sparkles className="w-4 h-4 text-white" />
                 </div>
                 <div>
@@ -954,7 +954,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
                     role="button" aria-selected={f.id === folderId}
                     className={`group flex items-center justify-between px-3 py-2.5 rounded-xl mb-1 cursor-pointer transition-all ${
                       f.id === folderId
-                        ? 'bg-zinc-800 text-white shadow-md shadow-black/15'
+                        ? 'bg-zinc-600 text-white shadow-md shadow-black/15'
                         : d('hover:bg-zinc-100 text-zinc-700','hover:bg-zinc-800 text-zinc-300')
                     }`}
                     onClick={() => { if (renamingFolderId !== f.id) setFolderId(f.id); }}
@@ -1238,7 +1238,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
                   role={devMode ? 'button' : undefined}
                   aria-label={devMode ? 'PDF 업로드' : undefined}
                 >
-                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center ${devMode ? 'bg-zinc-800 shadow-lg shadow-black/20' : d('bg-zinc-100','bg-zinc-800')}`}>
+                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center ${devMode ? 'bg-zinc-600 shadow-lg shadow-black/20' : d('bg-zinc-100','bg-zinc-800')}`}>
                     {devMode
                       ? <Upload className="w-7 h-7 text-white" />
                       : <Lock className={`w-7 h-7 ${d('text-zinc-400','text-zinc-600')}`} />
@@ -1268,7 +1268,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
                   className={`flex gap-3 ${m.role === 'user' ? 'flex-row-reverse' : ''}`}
                 >
                   <div className={`shrink-0 w-8 h-8 rounded-2xl flex items-center justify-center shadow-sm ${
-                    m.role === 'user' ? 'bg-zinc-800 shadow-black/15' : d('bg-zinc-100','bg-zinc-800')
+                    m.role === 'user' ? 'bg-zinc-600 shadow-black/15' : d('bg-zinc-100','bg-zinc-800')
                   }`} aria-hidden="true">
                     {m.role === 'user'
                       ? <User className="w-4 h-4 text-white" />
@@ -1280,7 +1280,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
                     <div
                       className={`px-4 py-3 rounded-2xl ${
                         m.role === 'user'
-                          ? 'bg-zinc-800 text-white rounded-tr-sm shadow-md shadow-black/10'
+                          ? 'bg-zinc-600 text-white rounded-tr-sm shadow-md shadow-black/10'
                           : d('bg-white border border-zinc-100 text-zinc-800 shadow-sm','bg-zinc-800 border border-zinc-700/60 text-zinc-100') + ' rounded-tl-sm'
                       }`}
                       style={{ fontSize: `${fontSize}px` }}
@@ -1358,7 +1358,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
               </button>
               <button onClick={() => sendMessage()} disabled={!input.trim() || loading}
                 aria-label="전송" title="전송"
-                className="shrink-0 w-8 h-8 bg-zinc-800 hover:bg-zinc-900 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl flex items-center justify-center transition-all mb-0.5 shadow-sm shadow-black/15">
+                className="shrink-0 w-8 h-8 bg-zinc-600 hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl flex items-center justify-center transition-all mb-0.5 shadow-sm shadow-black/15">
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowUp className="w-4 h-4" />}
               </button>
             </div>
