@@ -841,7 +841,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
 
     // 승인 대기
     if (authView === 'pending') return (
-      <div className={`flex h-screen items-center justify-center p-4 ${dark ? 'bg-zinc-950 text-zinc-100' : 'bg-zinc-50 text-zinc-900'}`}
+      <div className={`relative flex h-screen items-center justify-center p-4 ${dark ? 'bg-zinc-950 text-zinc-100' : 'bg-zinc-50 text-zinc-900'}`}
         style={{ backgroundImage: 'url(/abc.png)', backgroundSize: 'cover' }}>
         <div className={`absolute inset-0 ${dark ? 'bg-zinc-950/80' : 'bg-white/85'}`} />
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
@@ -869,14 +869,14 @@ ${contextText || '(업로드된 문서 없음)'}`;
     if (authView === 'login' || authView === 'register') {
       const isReg = authView === 'register';
       return (
-        <div className={`flex h-screen items-center justify-center p-4 ${dark ? 'bg-zinc-950 text-zinc-100' : 'bg-zinc-50 text-zinc-900'}`}
+        <div className={`relative flex h-screen items-center justify-center p-4 ${dark ? 'bg-zinc-950 text-zinc-100' : 'bg-zinc-50 text-zinc-900'}`}
           style={{ backgroundImage: 'url(/abc.png)', backgroundSize: 'cover' }}>
           <div className={`absolute inset-0 ${dark ? 'bg-zinc-950/80' : 'bg-white/85'}`} />
           <motion.div key={authView} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
             className={`relative z-10 w-full max-w-sm ${dark ? 'bg-zinc-900 border border-zinc-800' : 'bg-white border border-zinc-200'} rounded-3xl shadow-2xl overflow-hidden`}>
 
             {/* 헤더 */}
-            <div className="px-8 pt-8 pb-6 text-center"
+            <div className="relative px-8 pt-8 pb-6 text-center overflow-hidden"
               style={{ backgroundImage: 'url(/abc.png)', backgroundSize: 'cover', backgroundPosition: 'center top' }}>
               <div className={`absolute inset-0 ${dark ? 'bg-zinc-900/85' : 'bg-white/85'}`} />
               <div className="relative z-10">
