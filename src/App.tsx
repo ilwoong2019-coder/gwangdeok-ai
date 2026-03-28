@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { GoogleGenAI } from '@google/genai';
+import Groq from 'groq-sdk';
 import * as pdfjsLib from 'pdfjs-dist';
 import ReactMarkdown from 'react-markdown';
 import {
@@ -23,7 +23,7 @@ interface FolderData { id: string; name: string; files: FileData[]; }
 interface Message { role: 'user' | 'bot'; content: string; ts: number; }
 
 // ── Constants ─────────────────────────────────────────────
-const MODEL = 'gemini-2.0-flash';
+const MODEL = 'llama-3.3-70b-versatile';
 const DEV_PASSWORD = 'gwangdeok2026'; // 관리자 비밀번호 (변경 가능)
 const LS = {
   folders:  'gd2-folders',
@@ -99,9 +99,9 @@ export default function App() {
 
   // ── AI helper ─────────────────────────────────────────────
   const getAI = () => {
-    const key = (import.meta as any).env?.VITE_GEMINI_API_KEY;
-    if (!key) throw new Error('Gemini API 키가 설정되지 않았습니다.');
-    return new GoogleGenAI({ apiKey: key });
+    const key = (import.meta as any).env?.VITE_GROQ_API_KEY;
+    if (!key) throw new Error('Groq API 키가 설정되지 않았습니다.');
+    return new Groq({ apiKey: key, dangerouslyAllowBrowser: true });
   };
 
   // ── PDF extraction ────────────────────────────────────────
@@ -187,15 +187,19 @@ export default function App() {
 [문서 내용]
 ${ctx.substring(0, 30000)}`;
 
-      const stream = await ai.models.generateContentStream({
+      const stream = await ai.chat.completions.create({
         model: MODEL,
-        contents: [{ parts: [{ text: msg }] }],
-        config: { systemInstruction: system },
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user',   content: msg },
+        ],
+        stream: true,
+        max_tokens: 4096,
       });
       let full = '';
       setMessages(prev => [...prev, { role: 'bot', content: '', ts: Date.now() }]);
       for await (const chunk of stream) {
-        full += chunk.text ?? '';
+        full += chunk.choices[0]?.delta?.content ?? '';
         setMessages(prev => {
           const a = [...prev];
           a[a.length - 1] = { ...a[a.length - 1], content: full };
