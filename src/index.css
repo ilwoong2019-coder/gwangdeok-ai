@@ -1,0 +1,27 @@
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css");
+@import "tailwindcss";
+
+html, body, #root { height: 100%; }
+
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+.prose p { margin-bottom: 0.5rem; line-height: 1.75; }
+.prose ul, .prose ol { padding-left: 1.5rem; margin-bottom: 0.5rem; }
+.prose li { margin-bottom: 0.2rem; }
+.prose h1 { font-size: 1.3em; font-weight: 700; margin: 0.75rem 0 0.4rem; }
+.prose h2 { font-size: 1.15em; font-weight: 700; margin: 0.75rem 0 0.4rem; }
+.prose h3 { font-size: 1em; font-weight: 700; margin: 0.5rem 0 0.3rem; }
+.prose code { background: rgba(0,0,0,0.07); padding: 0.1em 0.35em; border-radius: 4px; font-size: 0.85em; }
+.prose pre { background: rgba(0,0,0,0.05); padding: 0.75rem 1rem; border-radius: 8px; overflow-x: auto; margin: 0.5rem 0; }
+.prose pre code { background: none; padding: 0; }
+.prose table { width: 100%; border-collapse: collapse; margin: 0.5rem 0; font-size: 0.875em; }
+.prose th, .prose td { border: 1px solid rgba(0,0,0,0.12); padding: 0.35rem 0.6rem; text-align: left; }
+.prose th { font-weight: 600; background: rgba(0,0,0,0.04); }
+.prose blockquote { border-left: 3px solid #2563eb; padding-left: 0.8rem; opacity: 0.75; margin: 0.5rem 0; }
+.prose strong { font-weight: 700; }
+.prose a { color: #2563eb; text-decoration: underline; }
+
+@media print {
+  .no-print { display: none !important; }
+}

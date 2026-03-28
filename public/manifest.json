@@ -1,0 +1,21 @@
+{
+  "name": "광덕고 AI 기반 교육 업무 비서",
+  "short_name": "교육 업무 비서",
+  "description": "광덕고등학교 AI 기반 교육 업무 비서",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "https://picsum.photos/seed/edu/192/192",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://picsum.photos/seed/edu/512/512",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
