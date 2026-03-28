@@ -900,8 +900,12 @@ ${contextText || '(업로드된 문서 없음)'}`;
             aria-label="사이드바"
           >
             {/* 헤더 */}
-            <div className={`flex items-center justify-between px-4 py-4 border-b ${border_c}`}>
-              <div className="flex items-center gap-2.5">
+            <div
+              className={`relative flex items-center justify-between px-4 py-4 border-b ${border_c} overflow-hidden`}
+              style={{ backgroundImage: 'url(/abc.png)', backgroundSize: 'cover', backgroundPosition: 'center top' }}
+            >
+              <div className={`absolute inset-0 ${d('bg-white/86','bg-zinc-900/78')}`} />
+              <div className="relative z-10 flex items-center gap-2.5">
                 <div className="w-9 h-9 bg-zinc-600 rounded-xl flex items-center justify-center shadow-md shadow-black/20">
                   <Sparkles className="w-4 h-4 text-white" />
                 </div>
@@ -911,7 +915,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
                 </div>
               </div>
               <button onClick={() => setSidebarOpen(false)} aria-label="사이드바 닫기"
-                className={`p-1.5 rounded-xl ${hover_light} transition-colors`}>
+                className={`relative z-10 p-1.5 rounded-xl ${hover_light} transition-colors`}>
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -1195,9 +1199,16 @@ ${contextText || '(업로드된 문서 없음)'}`;
         </nav>
 
         {/* 메시지 영역 */}
-        <div className="flex-1 overflow-y-auto hide-scrollbar p-4 md:p-6" role="main">
+        <div
+          className="flex-1 overflow-y-auto hide-scrollbar p-4 md:p-6 relative"
+          role="main"
+          style={messages.length === 0 ? { backgroundImage: 'url(/abc.png)', backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}
+        >
+          {messages.length === 0 && (
+            <div className={`absolute inset-0 pointer-events-none ${d('bg-zinc-50/80','bg-zinc-950/72')}`} />
+          )}
           {messages.length === 0 ? (
-            <div className="max-w-2xl mx-auto mt-8 md:mt-12">
+            <div className="relative z-10 max-w-2xl mx-auto mt-8 md:mt-12">
               <div className="text-center mb-8">
                 <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full mb-4 text-[10px] font-bold uppercase tracking-widest ${d('bg-zinc-100 text-zinc-500 border border-zinc-200','bg-zinc-800/60 text-zinc-400 border border-zinc-700')}`}>
                   <Sparkles className="w-3 h-3" />AI-Powered
