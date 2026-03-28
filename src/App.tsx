@@ -122,6 +122,8 @@ export default function App() {
   const [editingFile,    setEditingFile]   = useState<{ id: string; name: string } | null>(null);
   const [editFolderName, setEditFolderName] = useState('');
   const [editingFolderName, setEditingFolderName] = useState(false);
+  const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
+  const [renamingFolderText, setRenamingFolderText] = useState('');
 
   // Refs
   const fileRef      = useRef<HTMLInputElement>(null);
@@ -597,7 +599,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
         {confirmDlg && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+            className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
             onClick={() => setConfirmDlg(null)}
           >
             <motion.div
@@ -955,18 +957,44 @@ ${contextText || '(업로드된 문서 없음)'}`;
                         ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
                         : d('hover:bg-gray-100 text-gray-700','hover:bg-gray-800 text-gray-300')
                     }`}
-                    onClick={() => setFolderId(f.id)}
+                    onClick={() => { if (renamingFolderId !== f.id) setFolderId(f.id); }}
+                    onDoubleClick={e => {
+                      e.preventDefault();
+                      if (devMode) { setRenamingFolderId(f.id); setRenamingFolderText(f.name); }
+                    }}
                   >
-                    <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
                       <Folder className="w-4 h-4 shrink-0" />
-                      <span className="text-sm font-medium truncate">{f.name}</span>
-                      {f.files.length > 0 && (
-                        <span className={`text-[10px] shrink-0 px-1.5 py-0.5 rounded-full font-bold ${
-                          f.id === folderId ? 'bg-white/20 text-white' : d('bg-gray-100 text-gray-500','bg-gray-700 text-gray-400')
-                        }`}>{f.files.length}</span>
+                      {renamingFolderId === f.id ? (
+                        <input
+                          autoFocus
+                          value={renamingFolderText}
+                          onChange={e => setRenamingFolderText(e.target.value)}
+                          onClick={e => e.stopPropagation()}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') { renameFolder(f.id, renamingFolderText); setRenamingFolderId(null); }
+                            if (e.key === 'Escape') setRenamingFolderId(null);
+                          }}
+                          onBlur={() => { renameFolder(f.id, renamingFolderText); setRenamingFolderId(null); }}
+                          className={`flex-1 text-sm font-medium px-1.5 py-0.5 rounded-lg border outline-none min-w-0 ${
+                            f.id === folderId
+                              ? 'bg-white/20 border-white/40 text-white placeholder-white/60'
+                              : d('bg-white border-blue-400 text-gray-800','bg-gray-900 border-blue-500 text-gray-100')
+                          }`}
+                          aria-label="폴더 이름 수정"
+                        />
+                      ) : (
+                        <>
+                          <span className="text-sm font-medium truncate">{f.name}</span>
+                          {f.files.length > 0 && (
+                            <span className={`text-[10px] shrink-0 px-1.5 py-0.5 rounded-full font-bold ${
+                              f.id === folderId ? 'bg-white/20 text-white' : d('bg-gray-100 text-gray-500','bg-gray-700 text-gray-400')
+                            }`}>{f.files.length}</span>
+                          )}
+                        </>
                       )}
                     </div>
-                    {devMode && (
+                    {devMode && renamingFolderId !== f.id && (
                       <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button
                           onClick={e => { e.stopPropagation(); openFolderMgmt(f); }}
