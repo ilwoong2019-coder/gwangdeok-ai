@@ -32,7 +32,7 @@ interface ConfirmDlg { msg: string; onConfirm: () => void; }
 
 // ── Constants ─────────────────────────────────────────────
 const MODEL            = 'llama-3.3-70b-versatile';
-const DEV_PASSWORD     = 'gwangdeok2026';
+const DEV_PASSWORD     = 'ilwoong11!';
 const MAX_FILE_MB      = 20;
 const MAX_CONTEXT_CHARS = 28000;
 const MAX_HISTORY_MSGS = 20; // 최근 10턴
