@@ -7,7 +7,7 @@ const MAX_HISTORY_MSGS = 4;
 const PROVIDERS = {
   gemini: {
     url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
-    model: 'gemini-1.5-flash',
+    model: 'gemini-2.0-flash',
     contextChars: 50000,
     maxTokens: 2048,
     maxHistory: 6,
