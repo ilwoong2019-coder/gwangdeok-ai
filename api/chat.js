@@ -115,21 +115,38 @@ ${contextText || '(문서 없음)'}`;
       { role: 'user', content: query },
     ];
 
-    const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: model ?? 'llama-3.3-70b-versatile',
-        messages,
-        stream: true,
-        max_tokens: max_tokens ?? MAX_TOKENS,
-      }),
-    });
+    // 한도 초과 시 자동 폴백: 70b → 8b (일일 한도 5배)
+    const modelQueue = [
+      model ?? 'llama-3.3-70b-versatile',
+      'llama-3.1-8b-instant',
+    ];
+
+    let groqRes = null;
+    let usedModel = modelQueue[0];
+    for (const m of modelQueue) {
+      usedModel = m;
+      groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: m,
+          messages,
+          stream: true,
+          max_tokens: max_tokens ?? MAX_TOKENS,
+        }),
+      });
+      if (groqRes.ok || (groqRes.status !== 429 && groqRes.status !== 413)) break;
+    }
 
     if (!groqRes.ok) {
       const err = await groqRes.text();
       res.status(groqRes.status).send(err);
       return;
+    }
+
+    // 폴백 모델 사용 시 헤더로 알림
+    if (usedModel !== modelQueue[0]) {
+      res.setHeader('X-Used-Model', usedModel);
     }
 
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
