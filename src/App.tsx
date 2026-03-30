@@ -26,7 +26,7 @@ const getPdfjs = async () => {
 
 // ── Types ─────────────────────────────────────────────────
 interface FileData   { id: string; name: string; chunkCount?: number; pageCount?: number; }
-interface FolderData { id: string; name: string; files: FileData[]; }
+interface FolderData { id: string; name: string; files: FileData[]; intro?: string; }
 interface Message    { role: 'user' | 'bot'; content: string; ts: number; }
 interface ConfirmDlg { msg: string; onConfirm: () => void; }
 
@@ -296,6 +296,8 @@ export default function App() {
   const [editingFolderName, setEditingFolderName] = useState(false);
   const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
   const [renamingFolderText, setRenamingFolderText] = useState('');
+  const [editingIntro, setEditingIntro] = useState(false);
+  const [introText, setIntroText] = useState('');
 
   // ── 인증 상태 ─────────────────────────────────────────────
   const [authInitialized, setAuthInitialized] = useState(false);
@@ -387,7 +389,9 @@ export default function App() {
       if (prev.length > 0) return prev;
       const intro: Message = {
         role: 'bot',
-        content: `**${f.name}** 폴더에 문서 **${f.files.length}개**가 준비됐습니다.\n\n${f.files.map(fl => `• **${fl.name}**${fl.pageCount ? ` (${fl.pageCount}페이지)` : ''}`).join('\n')}\n\n궁금한 내용을 자유롭게 질문해주세요!`,
+        content: f.intro
+          ? `**${f.name}**\n\n${f.intro}\n\n---\n궁금한 내용을 자유롭게 질문해주세요!`
+          : `**${f.name}** 폴더에 문서 **${f.files.length}개**가 준비됐습니다.\n\n${f.files.map(fl => `• **${fl.name}**`).join('\n')}\n\n궁금한 내용을 자유롭게 질문해주세요!`,
         ts: Date.now(),
       };
       try { lsSave(LS.messages, [intro]); } catch {}
@@ -661,11 +665,18 @@ export default function App() {
     setEditingFolderName(false);
   };
 
+  const saveIntro = (folderId: string, text: string) => {
+    setFolders(prev => prev.map(f => f.id === folderId ? { ...f, intro: text.trim() || undefined } : f));
+    setEditingIntro(false);
+  };
+
   const openFolderMgmt = (f: FolderData) => {
     setMgmtFolderId(f.id);
     setEditFolderName(f.name);
     setEditingFolderName(false);
     setEditingFile(null);
+    setEditingIntro(false);
+    setIntroText(f.intro ?? '');
   };
 
   // ── 대화 관리 ─────────────────────────────────────────────
@@ -675,7 +686,9 @@ export default function App() {
       const f = folders.find(fd => fd.id === folderId) ?? folders[0];
       const intro: Message[] = f?.files.length ? [{
         role: 'bot',
-        content: `**${f.name}** 폴더에 문서 **${f.files.length}개**가 준비됐습니다.\n\n${f.files.map(fl => `• **${fl.name}**${fl.pageCount ? ` (${fl.pageCount}페이지)` : ''}`).join('\n')}\n\n궁금한 내용을 자유롭게 질문해주세요!`,
+        content: f.intro
+          ? `**${f.name}**\n\n${f.intro}\n\n---\n궁금한 내용을 자유롭게 질문해주세요!`
+          : `**${f.name}** 폴더에 문서 **${f.files.length}개**가 준비됐습니다.\n\n${f.files.map(fl => `• **${fl.name}**`).join('\n')}\n\n궁금한 내용을 자유롭게 질문해주세요!`,
         ts: Date.now(),
       }] : [];
       setMessages(intro);
@@ -1268,6 +1281,38 @@ export default function App() {
                       ><Trash2 className="w-3.5 h-3.5" /></button>
                     </div>
                   ))}
+                </div>
+
+                {/* 소개 텍스트 편집 */}
+                <div className={`px-4 py-3 border-t ${border_c} shrink-0`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={`text-xs font-semibold ${muted}`}>대화 시작 소개 문구</span>
+                    {!editingIntro ? (
+                      <button
+                        onClick={() => { setIntroText(mf.intro ?? ''); setEditingIntro(true); }}
+                        className={`text-xs px-2.5 py-1 rounded-lg ${d('bg-zinc-100 hover:bg-zinc-200 text-zinc-600','bg-zinc-700 hover:bg-zinc-600 text-zinc-300')} transition-colors`}
+                      >{mf.intro ? '수정' : '+ 추가'}</button>
+                    ) : (
+                      <div className="flex gap-1.5">
+                        <button onClick={() => setEditingIntro(false)} className={`text-xs px-2.5 py-1 rounded-lg ${d('bg-zinc-100 hover:bg-zinc-200 text-zinc-500','bg-zinc-700 hover:bg-zinc-600 text-zinc-400')} transition-colors`}>취소</button>
+                        <button onClick={() => saveIntro(mf.id, introText)} className="text-xs px-2.5 py-1 rounded-lg bg-zinc-600 hover:bg-zinc-700 text-white transition-colors">저장</button>
+                      </div>
+                    )}
+                  </div>
+                  {editingIntro ? (
+                    <textarea
+                      autoFocus
+                      value={introText}
+                      onChange={e => setIntroText(e.target.value)}
+                      rows={6}
+                      placeholder={"목차나 폴더 설명을 입력하세요.\n대화 시작 시 첫 메시지로 표시됩니다."}
+                      className={`w-full text-xs px-3 py-2 rounded-xl border outline-none resize-none leading-relaxed ${d('border-zinc-300 bg-zinc-50 text-zinc-800 placeholder:text-zinc-400 focus:border-zinc-400','border-zinc-600 bg-zinc-800/50 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-500')}`}
+                    />
+                  ) : mf.intro ? (
+                    <p className={`text-xs leading-relaxed whitespace-pre-wrap line-clamp-3 ${muted}`}>{mf.intro}</p>
+                  ) : (
+                    <p className={`text-xs ${muted} opacity-50`}>설정된 소개 문구가 없습니다</p>
+                  )}
                 </div>
 
                 {/* 하단 버튼 */}
