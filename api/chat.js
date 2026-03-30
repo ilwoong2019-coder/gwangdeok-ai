@@ -1,11 +1,29 @@
 import { createClient } from '@supabase/supabase-js';
 
-// 무료 플랜 12,000 TPM 기준 최적화
-// 컨텍스트 ~3,500토큰 + 히스토리 ~600토큰 + 답변 2,048토큰 = ~6,200토큰
-const CHUNK_CANDIDATES = 30;   // 검색 후보 수 (많이 가져와서 스코어링)
-const MAX_CONTEXT_CHARS = 14000; // ~3,500 토큰 (한국어 4자≈1토큰)
-const MAX_HISTORY_MSGS  = 6;    // 최근 3턴만 유지
-const MAX_TOKENS        = 2048;
+const CHUNK_CANDIDATES = 30;
+const MAX_HISTORY_MSGS = 4;
+
+// 제공자별 설정
+const PROVIDERS = {
+  gemini: {
+    url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+    model: 'gemini-1.5-flash',
+    contextChars: 50000, // 하루 150만 토큰 — 넉넉하게
+    maxTokens: 2048,
+  },
+  groq_70b: {
+    url: 'https://api.groq.com/openai/v1/chat/completions',
+    model: 'llama-3.3-70b-versatile',
+    contextChars: 10000,
+    maxTokens: 1800,
+  },
+  groq_8b: {
+    url: 'https://api.groq.com/openai/v1/chat/completions',
+    model: 'llama-3.1-8b-instant',
+    contextChars: 3500,
+    maxTokens: 800,
+  },
+};
 
 function scoreChunks(chunks, keywords) {
   return chunks.map(c => {
@@ -18,7 +36,7 @@ function scoreChunks(chunks, keywords) {
   });
 }
 
-async function searchChunks(folderId, query) {
+async function searchChunks(folderId, query, maxContextChars) {
   const sbUrl = process.env.VITE_SUPABASE_URL;
   const sbKey = process.env.VITE_SUPABASE_ANON_KEY;
   if (!sbUrl || !sbKey || !folderId) return [];
@@ -46,7 +64,6 @@ async function searchChunks(folderId, query) {
     chunks = data ?? [];
   }
 
-  // 키워드 검색 결과 부족 시 순서대로 보충
   if (chunks.length < 5) {
     const { data } = await sb
       .from('document_chunks')
@@ -64,20 +81,17 @@ async function searchChunks(folderId, query) {
     }
   }
 
-  // 키워드 등장 빈도로 스코어링 후 관련성 높은 순 정렬
   const scored = scoreChunks(chunks, keywords);
   scored.sort((a, b) => b.score - a.score || a.file_name.localeCompare(b.file_name) || a.chunk_index - b.chunk_index);
 
-  // 컨텍스트 한도 내에서 선택
   let total = 0;
   const result = [];
   for (const c of scored) {
-    if (total + c.content.length > MAX_CONTEXT_CHARS) break;
+    if (total + c.content.length > maxContextChars) break;
     result.push(c);
     total += c.content.length;
   }
 
-  // 파일명→청크 순으로 재정렬 (AI가 읽기 쉽게)
   result.sort((a, b) => a.file_name.localeCompare(b.file_name) || a.chunk_index - b.chunk_index);
   return result;
 }
@@ -85,74 +99,74 @@ async function searchChunks(folderId, query) {
 export default async function handler(req, res) {
   if (req.method !== 'POST') { res.status(405).send('Method not allowed'); return; }
 
-  const apiKey = process.env.GROQ_API_KEY ?? process.env.VITE_GROQ_API_KEY;
-  if (!apiKey) {
-    res.status(500).json({ error: 'GROQ_API_KEY (또는 VITE_GROQ_API_KEY) 환경변수가 설정되지 않았습니다.' });
+  const geminiKey = process.env.GEMINI_API_KEY;
+  const groqKey   = process.env.GROQ_API_KEY ?? process.env.VITE_GROQ_API_KEY;
+
+  // 사용 가능한 제공자 순서 결정 (Gemini 우선)
+  const queue = [];
+  if (geminiKey) queue.push({ ...PROVIDERS.gemini,    key: geminiKey });
+  if (groqKey)   queue.push({ ...PROVIDERS.groq_70b,  key: groqKey });
+  if (groqKey)   queue.push({ ...PROVIDERS.groq_8b,   key: groqKey });
+
+  if (!queue.length) {
+    res.status(500).json({ error: 'API 키가 설정되지 않았습니다. GEMINI_API_KEY 또는 GROQ_API_KEY를 확인하세요.' });
     return;
   }
 
   try {
-    const { folderId, folderName, query, history = [], model, max_tokens } = req.body;
-
+    const { folderId, folderName, query, history = [] } = req.body;
     if (!query) { res.status(400).json({ error: '질문이 없습니다.' }); return; }
 
-    const chunks = await searchChunks(folderId, query);
-    const contextText = chunks.map(c => `[${c.file_name}]\n${c.content}`).join('\n\n');
+    const trimmedHistory = history.slice(-MAX_HISTORY_MSGS);
+    let finalRes = null;
 
-    // 시스템 프롬프트 압축 (토큰 절약)
-    const system = `광덕 교사용 교육행정 AI 비서입니다. 폴더: "${folderName ?? ''}"
+    for (const provider of queue) {
+      const chunks = await searchChunks(folderId, query, provider.contextChars);
+      const contextText = chunks.map(c => `[${c.file_name}]\n${c.content}`).join('\n\n');
+
+      const system = `광덕 교사용 교육행정 AI 비서입니다. 폴더: "${folderName ?? ''}"
 규칙: ①아래 문서 내용만 근거로 답변 ②출처 파일명 반드시 명시 ③문서에 없으면 "문서에서 확인 불가" ④간결·친절하게
 
 [문서]
 ${contextText || '(문서 없음)'}`;
 
-    // 히스토리 API에서도 한 번 더 제한 (토큰 절약)
-    const trimmedHistory = history.slice(-MAX_HISTORY_MSGS);
+      const messages = [
+        { role: 'system', content: system },
+        ...trimmedHistory,
+        { role: 'user', content: query },
+      ];
 
-    const messages = [
-      { role: 'system', content: system },
-      ...trimmedHistory,
-      { role: 'user', content: query },
-    ];
+      try {
+        const r = await fetch(provider.url, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${provider.key}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model: provider.model, messages, stream: true, max_tokens: provider.maxTokens }),
+        });
 
-    // 한도 초과 시 자동 폴백: 70b → 8b (일일 한도 5배)
-    const modelQueue = [
-      model ?? 'llama-3.3-70b-versatile',
-      'llama-3.1-8b-instant',
-    ];
+        if (r.ok) { finalRes = r; break; }
 
-    let groqRes = null;
-    let usedModel = modelQueue[0];
-    for (const m of modelQueue) {
-      usedModel = m;
-      groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: m,
-          messages,
-          stream: true,
-          max_tokens: max_tokens ?? MAX_TOKENS,
-        }),
-      });
-      if (groqRes.ok || (groqRes.status !== 429 && groqRes.status !== 413)) break;
+        // 한도 초과나 요청 오류면 다음 제공자로
+        if (r.status === 429 || r.status === 413 || r.status === 400) continue;
+
+        // 그 외 오류(401 등)는 바로 반환
+        const err = await r.text();
+        res.status(r.status).send(err);
+        return;
+      } catch {
+        // 네트워크 오류 시 다음 제공자로
+        continue;
+      }
     }
 
-    if (!groqRes.ok) {
-      const err = await groqRes.text();
-      res.status(groqRes.status).send(err);
+    if (!finalRes) {
+      res.status(429).json({ error: '모든 AI 제공자의 한도가 초과됐습니다. 잠시 후 다시 시도해주세요.' });
       return;
-    }
-
-    // 폴백 모델 사용 시 헤더로 알림
-    if (usedModel !== modelQueue[0]) {
-      res.setHeader('X-Used-Model', usedModel);
     }
 
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     const decoder = new TextDecoder();
     let buffer = '';
-    for await (const chunk of groqRes.body) {
+    for await (const chunk of finalRes.body) {
       buffer += decoder.decode(chunk, { stream: true });
       const lines = buffer.split('\n');
       buffer = lines.pop() ?? '';
