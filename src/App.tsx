@@ -25,7 +25,7 @@ const getPdfjs = async () => {
 };
 
 // ── Types ─────────────────────────────────────────────────
-interface FileData   { id: string; name: string; text: string; }
+interface FileData   { id: string; name: string; chunkCount?: number; pageCount?: number; }
 interface FolderData { id: string; name: string; files: FileData[]; }
 interface Message    { role: 'user' | 'bot'; content: string; ts: number; }
 interface ConfirmDlg { msg: string; onConfirm: () => void; }
@@ -46,8 +46,10 @@ interface AppUser {
 const MODEL            = 'llama-3.3-70b-versatile';
 const DEV_PASSWORD     = (import.meta as any).env?.VITE_ADMIN_PASSWORD as string || 'ilwoong11!';
 const PW_SALT          = 'gwangdeok-ai-2026-secure';
-const MAX_FILE_MB      = 20;
-const MAX_CONTEXT_CHARS = 100000;
+const MAX_FILE_MB      = 500;
+const MAX_FOLDERS      = 3;
+const CHUNK_SIZE       = 2000;
+const CHUNK_OVERLAP    = 200;
 const MAX_HISTORY_MSGS = 20; // 최근 10턴
 const LS = {
   folders:  'gd2-folders',
@@ -77,6 +79,40 @@ async function sbLoadFolders(): Promise<FolderData[] | null> {
     if (error || !data) return null;
     return data.value as FolderData[];
   } catch { return null; }
+}
+
+function chunkText(text: string): string[] {
+  const chunks: string[] = [];
+  let i = 0;
+  while (i < text.length) {
+    chunks.push(text.slice(i, i + CHUNK_SIZE));
+    i += CHUNK_SIZE - CHUNK_OVERLAP;
+    if (i >= text.length) break;
+  }
+  return chunks;
+}
+
+async function sbSaveChunks(folderId: string, fileId: string, fileName: string, chunks: string[]): Promise<void> {
+  if (!supabase) return;
+  const rows = chunks.map((content, idx) => ({ folder_id: folderId, file_id: fileId, file_name: fileName, chunk_index: idx, content }));
+  for (let i = 0; i < rows.length; i += 100) {
+    await supabase.from('document_chunks').insert(rows.slice(i, i + 100));
+  }
+}
+
+async function sbDeleteFileChunks(folderId: string, fileId: string): Promise<void> {
+  if (!supabase) return;
+  await supabase.from('document_chunks').delete().eq('folder_id', folderId).eq('file_id', fileId);
+}
+
+async function sbDeleteFolderChunks(folderId: string): Promise<void> {
+  if (!supabase) return;
+  await supabase.from('document_chunks').delete().eq('folder_id', folderId);
+}
+
+async function sbRenameFileChunks(folderId: string, fileId: string, newName: string): Promise<void> {
+  if (!supabase) return;
+  await supabase.from('document_chunks').update({ file_name: newName }).eq('folder_id', folderId).eq('file_id', fileId);
 }
 
 async function sbSaveFolders(folders: FolderData[]): Promise<void> {
@@ -253,7 +289,7 @@ export default function App() {
   const [devPwError,     setDevPwError]    = useState(false);
   const [showFolderPicker, setShowFolderPicker] = useState(false);
   const [confirmDlg,     setConfirmDlg]    = useState<ConfirmDlg | null>(null);
-  const [ctxWarning,     setCtxWarning]    = useState(false);
+  const [ctxWarning,     setCtxWarning]    = useState(false); // unused, kept for compat
   const [mgmtFolderId,   setMgmtFolderId]  = useState<string | null>(null);
   const [editingFile,    setEditingFile]   = useState<{ id: string; name: string } | null>(null);
   const [editFolderName, setEditFolderName] = useState('');
@@ -373,41 +409,20 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── 컨텍스트 용량 경고 ─────────────────────────────────────
-  useEffect(() => {
-    const total = (folder?.files ?? []).reduce((s, f) => s + f.text.length, 0);
-    setCtxWarning(total > MAX_CONTEXT_CHARS);
-  }, [folder]);
 
-  // ── PDF 추출 (pdfjs 지연 로딩) ───────────────────────────
-  const extractPdf = async (file: File): Promise<string> => {
-    const pdfjs = await getPdfjs();
-    const buf = await file.arrayBuffer();
-    const pdf = await pdfjs.getDocument({ data: buf }).promise;
-    let text = '';
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const c = await page.getTextContent();
-      text += c.items.map((item: any) => item.str).join(' ') + '\n';
-    }
-    if (!text.trim()) throw new Error(`"${file.name}"에서 텍스트를 추출할 수 없습니다. 스캔 이미지 PDF일 수 있습니다.`);
-    return text;
-  };
 
   // ── 파일 업로드 ───────────────────────────────────────────
   const uploadFiles = async (files: File[], targetId?: string) => {
     const pdfs = files.filter(f => f.type === 'application/pdf');
     if (!pdfs.length) { setError('PDF 파일만 업로드 가능합니다.'); return; }
 
-    // 파일 크기 검사
     const oversized = pdfs.find(f => f.size > MAX_FILE_MB * 1024 * 1024);
     if (oversized) { setError(`"${oversized.name}" 파일이 ${MAX_FILE_MB}MB를 초과합니다.`); return; }
 
     const tid = targetId ?? uploadTarget.current ?? folderId;
     const targetFolder = folders.find(f => f.id === tid);
 
-    // 중복 검사
-    const dupes    = pdfs.filter(f =>  targetFolder?.files.some(ef => ef.name === f.name));
+    const dupes     = pdfs.filter(f =>  targetFolder?.files.some(ef => ef.name === f.name));
     const toProcess = pdfs.filter(f => !targetFolder?.files.some(ef => ef.name === f.name));
     if (!toProcess.length) { setError('선택한 파일이 이미 모두 업로드되어 있습니다.'); return; }
 
@@ -416,9 +431,27 @@ export default function App() {
     try {
       for (let i = 0; i < toProcess.length; i++) {
         const f = toProcess[i];
-        setProcessingMsg(`(${i + 1}/${toProcess.length}) ${f.name}`);
-        const text = await extractPdf(f);
-        added.push({ id: crypto.randomUUID(), name: f.name, text });
+        setProcessingMsg(`(${i + 1}/${toProcess.length}) ${f.name} 텍스트 추출 중...`);
+        const pdfjs = await getPdfjs();
+        const buf = await f.arrayBuffer();
+        const pdf = await pdfjs.getDocument({ data: buf }).promise;
+        const pageCount = pdf.numPages;
+        let text = '';
+        for (let p = 1; p <= pageCount; p++) {
+          if (p % 50 === 0) setProcessingMsg(`(${i + 1}/${toProcess.length}) ${f.name} — ${p}/${pageCount}페이지`);
+          const page = await pdf.getPage(p);
+          const c = await page.getTextContent();
+          text += c.items.map((item: any) => item.str).join(' ') + '\n';
+        }
+        if (!text.trim()) throw new Error(`"${f.name}"에서 텍스트를 추출할 수 없습니다. 스캔 이미지 PDF일 수 있습니다.`);
+
+        const fileId = crypto.randomUUID();
+        const chunks = chunkText(text);
+
+        setProcessingMsg(`(${i + 1}/${toProcess.length}) ${f.name} — Supabase 저장 중 (${chunks.length}청크)...`);
+        await sbSaveChunks(tid, fileId, f.name, chunks);
+
+        added.push({ id: fileId, name: f.name, chunkCount: chunks.length, pageCount });
       }
 
       setFolders(prev => {
@@ -430,7 +463,7 @@ export default function App() {
       });
       setFolderId(tid);
 
-      let msg = `✅ **${targetFolder?.name ?? '폴더'}**에 ${added.length}개 파일이 추가됐습니다.\n\n${added.map(f => `• \`${f.name}\``).join('\n')}`;
+      let msg = `✅ **${targetFolder?.name ?? '폴더'}**에 ${added.length}개 파일이 추가됐습니다.\n\n${added.map(f => `• \`${f.name}\` (${f.pageCount}페이지, ${f.chunkCount}청크)`).join('\n')}`;
       if (dupes.length) msg += `\n\n⚠️ 이미 존재하는 파일 ${dupes.length}개는 건너뜀: ${dupes.map(f => f.name).join(', ')}`;
       msg += '\n\n이제 이 폴더의 문서에 대해 자유롭게 질문해주세요!';
       addBot(msg);
@@ -478,28 +511,11 @@ export default function App() {
     setLoading(true); setError(null);
 
     try {
-      const ctx = (folder?.files ?? []).map(f => `### 파일: ${f.name}\n${f.text}`).join('\n\n');
-
-      if (!ctx.trim()) {
+      if (!(folder?.files.length)) {
         addBot('현재 폴더에 파일이 없습니다. 왼쪽 사이드바에서 PDF를 먼저 업로드해주세요.');
+        setLoading(false);
         return;
       }
-
-      const truncated   = ctx.length > MAX_CONTEXT_CHARS;
-      const contextText = ctx.substring(0, MAX_CONTEXT_CHARS);
-
-      const system = `당신은 광덕 교사들을 돕는 교육 행정 AI 비서입니다.
-현재 폴더: "${folder?.name}"
-${truncated ? '\n⚠️ 참고: 문서량이 많아 일부만 참조 중입니다.\n' : ''}
-[답변 원칙 - 반드시 준수]
-1. 오직 아래 [문서 내용]에 포함된 내용만을 근거로 답변하세요. 학습된 지식이나 외부 정보는 절대 사용하지 마세요.
-2. 답변 시 반드시 출처 파일명을 명시하세요 (예: "[규정.pdf]에 따르면...").
-3. 문서에 없는 내용은 어떤 경우에도 추측하거나 보완하지 말고, "업로드된 문서에서 확인이 어렵습니다"라고만 답하세요.
-4. 문서가 없거나 비어 있으면 "문서가 업로드되지 않아 답변이 불가합니다"라고 답하세요.
-5. 명확하고 친절한 어조로 실무에 바로 활용할 수 있게 답변하세요.
-
-[문서 내용]
-${contextText || '(업로드된 문서 없음)'}`;
 
       // 이전 대화 히스토리 구성 (빈 메시지 제외, 최근 N개)
       const history = prevMessages
@@ -516,11 +532,10 @@ ${contextText || '(업로드된 문서 없음)'}`;
         body: JSON.stringify({
           model: MODEL,
           max_tokens: 4096,
-          messages: [
-            { role: 'system', content: system },
-            ...history,
-            { role: 'user', content: msg },
-          ],
+          folderId,
+          folderName: folder?.name,
+          query: msg,
+          history,
         }),
       });
 
@@ -582,6 +597,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
   const addFolder = () => {
     const name = newName.trim();
     if (!name) return;
+    if (folders.length >= MAX_FOLDERS) { setError(`폴더는 최대 ${MAX_FOLDERS}개까지 만들 수 있습니다.`); return; }
     const nf: FolderData = { id: crypto.randomUUID(), name, files: [] };
     setFolders(prev => [...prev, nf]);
     setFolderId(nf.id);
@@ -592,6 +608,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
     if (!devMode) { setError('폴더 삭제는 관리자만 가능합니다.'); return; }
     if (folders.length <= 1) { setError('마지막 폴더는 삭제할 수 없습니다.'); return; }
     askConfirm('폴더와 모든 파일을 삭제할까요?', () => {
+      sbDeleteFolderChunks(id);
       setFolders(prev => {
         const rest = prev.filter(f => f.id !== id);
         if (folderId === id) setFolderId(rest[0].id);
@@ -603,6 +620,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
   const deleteFile = (fileId: string, targetFolderId?: string) => {
     if (!devMode) { setError('파일 삭제는 관리자만 가능합니다.'); return; }
     const tid = targetFolderId ?? folderId;
+    sbDeleteFileChunks(tid, fileId);
     setFolders(prev => prev.map(f =>
       f.id === tid ? { ...f, files: f.files.filter(fl => fl.id !== fileId) } : f
     ));
@@ -611,6 +629,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
   const renameFile = (targetFolderId: string, fileId: string, newName: string) => {
     const trimmed = newName.trim();
     if (!trimmed) { setEditingFile(null); return; }
+    sbRenameFileChunks(targetFolderId, fileId, trimmed);
     setFolders(prev => prev.map(f =>
       f.id === targetFolderId
         ? { ...f, files: f.files.map(fl => fl.id === fileId ? { ...fl, name: trimmed } : fl) }
@@ -1124,7 +1143,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
         {mgmtFolderId && (() => {
           const mf = folders.find(f => f.id === mgmtFolderId);
           if (!mf) return null;
-          const approxPages = (chars: number) => Math.max(1, Math.round(chars / 1500));
+          const approxPages = (_chars: number) => '?';
           return (
             <motion.div
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -1217,7 +1236,7 @@ ${contextText || '(업로드된 문서 없음)'}`;
                           </button>
                         )}
                         <p className={`text-[10px] mt-0.5 ${muted}`}>
-                          약 {approxPages(fl.text.length)}페이지 · {(fl.text.length / 1000).toFixed(0)}K자
+                          {fl.pageCount ? `${fl.pageCount}페이지` : '?페이지'} · {fl.chunkCount ?? '?'}청크
                         </p>
                       </div>
                       <button
@@ -1522,14 +1541,6 @@ ${contextText || '(업로드된 문서 없음)'}`;
                 <input ref={fileRef} type="file" accept=".pdf" multiple className="hidden"
                   onChange={e => { if (e.target.files?.length) uploadFiles(Array.from(e.target.files), uploadTarget.current || folderId); }} />
 
-                {/* 컨텍스트 경고 */}
-                {ctxWarning && hasFiles && (
-                  <div className={`mb-2 px-3 py-2 rounded-xl text-[10px] flex items-start gap-1.5 ${d('bg-amber-50 text-amber-700 border border-amber-200','bg-amber-950/30 text-amber-400 border border-amber-800/40')}`}
-                    role="status">
-                    <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
-                    <span>문서량이 많아 일부만 AI에 전달됩니다</span>
-                  </div>
-                )}
 
                 {(folder?.files ?? []).length === 0 ? (
                   devMode ? (
