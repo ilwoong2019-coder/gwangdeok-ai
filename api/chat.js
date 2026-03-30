@@ -3,25 +3,28 @@ import { createClient } from '@supabase/supabase-js';
 const CHUNK_CANDIDATES = 30;
 const MAX_HISTORY_MSGS = 4;
 
-// 제공자별 설정
+// 제공자별 설정 (maxHistory: 히스토리 메시지 수)
 const PROVIDERS = {
   gemini: {
     url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
     model: 'gemini-1.5-flash',
-    contextChars: 50000, // 하루 150만 토큰 — 넉넉하게
+    contextChars: 50000,
     maxTokens: 2048,
+    maxHistory: 6,
   },
   groq_70b: {
     url: 'https://api.groq.com/openai/v1/chat/completions',
     model: 'llama-3.3-70b-versatile',
     contextChars: 10000,
     maxTokens: 1800,
+    maxHistory: 2,
   },
   groq_8b: {
     url: 'https://api.groq.com/openai/v1/chat/completions',
     model: 'llama-3.1-8b-instant',
-    contextChars: 3500,
-    maxTokens: 800,
+    contextChars: 3000,
+    maxTokens: 600,
+    maxHistory: 0, // 히스토리 없이 — 6,000 TPM 한도
   },
 };
 
@@ -99,7 +102,7 @@ async function searchChunks(folderId, query, maxContextChars) {
 export default async function handler(req, res) {
   if (req.method !== 'POST') { res.status(405).send('Method not allowed'); return; }
 
-  const geminiKey = process.env.GEMINI_API_KEY;
+  const geminiKey = process.env.GEMINI_API_KEY ?? process.env.VITE_GEMINI_API_KEY;
   const groqKey   = process.env.GROQ_API_KEY ?? process.env.VITE_GROQ_API_KEY;
 
   // 사용 가능한 제공자 순서 결정 (Gemini 우선)
@@ -117,10 +120,10 @@ export default async function handler(req, res) {
     const { folderId, folderName, query, history = [] } = req.body;
     if (!query) { res.status(400).json({ error: '질문이 없습니다.' }); return; }
 
-    const trimmedHistory = history.slice(-MAX_HISTORY_MSGS);
     let finalRes = null;
 
     for (const provider of queue) {
+      const trimmedHistory = history.slice(-provider.maxHistory);
       const chunks = await searchChunks(folderId, query, provider.contextChars);
       const contextText = chunks.map(c => `[${c.file_name}]\n${c.content}`).join('\n\n');
 
