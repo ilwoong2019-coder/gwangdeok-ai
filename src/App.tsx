@@ -1796,7 +1796,7 @@ export default function App() {
           role="main"
           style={{ backgroundImage: 'url(/abc.png)', backgroundSize: 'cover', backgroundPosition: 'center' }}
         >
-          <div className={`absolute inset-0 pointer-events-none ${chatNotStarted ? d('bg-zinc-50/80','bg-zinc-950/72') : d('bg-zinc-50/92','bg-zinc-950/88')}`} />
+          <div className={`absolute inset-0 pointer-events-none transition-colors duration-300 ${chatNotStarted ? d('bg-white/72','bg-zinc-950/60') : d('bg-white/82','bg-zinc-950/72')}`} />
           {chatNotStarted ? (
             <div className="relative z-10 max-w-2xl mx-auto mt-8 md:mt-12">
               {/* 소개 메시지 (봇 메시지가 있을 때) */}
