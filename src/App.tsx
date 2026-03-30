@@ -524,7 +524,10 @@ ${contextText || '(업로드된 문서 없음)'}`;
         }),
       });
 
-      if (!res.ok) throw new Error(`AI 서버 오류 (${res.status})`);
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '');
+        throw new Error(`AI 서버 오류 (${res.status})${errText ? ': ' + errText.slice(0, 200) : ''}`);
+      }
 
       const reader = res.body!.getReader();
       const decoder = new TextDecoder();

@@ -5,12 +5,20 @@ export default async function handler(req) {
     return new Response('Method not allowed', { status: 405 });
   }
 
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) {
+    return new Response(JSON.stringify({ error: 'GROQ_API_KEY 환경변수가 설정되지 않았습니다.' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
   const { messages, model, max_tokens } = await req.json();
 
   const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+      'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
