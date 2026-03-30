@@ -880,6 +880,8 @@ export default function App() {
   };
 
   // ── 스타일 헬퍼 ───────────────────────────────────────────
+  // 사용자가 아직 메시지를 보내지 않은 상태 (소개 봇 메시지만 있어도 빈 화면으로 처리)
+  const chatNotStarted = !messages.some(m => m.role === 'user');
   const bg          = d('bg-zinc-50',      'bg-zinc-950');
   const text        = d('text-zinc-900',   'text-zinc-100');
   const sidebar_bg  = d('bg-white',        'bg-zinc-900');
@@ -1792,13 +1794,19 @@ export default function App() {
         <div
           className="flex-1 overflow-y-auto hide-scrollbar p-4 md:p-6 relative"
           role="main"
-          style={messages.length === 0 ? { backgroundImage: 'url(/abc.png)', backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}
+          style={chatNotStarted ? { backgroundImage: 'url(/abc.png)', backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}
         >
-          {messages.length === 0 && (
+          {chatNotStarted && (
             <div className={`absolute inset-0 pointer-events-none ${d('bg-zinc-50/80','bg-zinc-950/72')}`} />
           )}
-          {messages.length === 0 ? (
+          {chatNotStarted ? (
             <div className="relative z-10 max-w-2xl mx-auto mt-8 md:mt-12">
+              {/* 소개 메시지 (봇 메시지가 있을 때) */}
+              {messages.length > 0 && messages[0].role === 'bot' && (
+                <div className={`mb-6 px-4 py-3 rounded-2xl text-sm leading-relaxed ${d('bg-white/90 text-zinc-700 shadow-sm border border-zinc-100','bg-zinc-800/90 text-zinc-300 border border-zinc-700')}`}>
+                  <ReactMarkdown components={mdComponents}>{messages[0].content}</ReactMarkdown>
+                </div>
+              )}
               <div className="text-center mb-8">
                 <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full mb-4 text-[10px] font-bold uppercase tracking-widest ${d('bg-zinc-100 text-zinc-500 border border-zinc-200','bg-zinc-800/60 text-zinc-400 border border-zinc-700')}`}>
                   <Sparkles className="w-3 h-3" />AI-Powered
