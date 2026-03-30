@@ -379,6 +379,22 @@ export default function App() {
   useEffect(() => { localStorage.setItem(LS.sidebar, JSON.stringify(sidebarOpen)); }, [sidebarOpen]);
   // messages는 스트리밍 완료 후에만 저장 (sendMessage finally 블록)
 
+  // ── 폴더 전환 또는 초기 로드 시 파일 소개 메시지 ────────────
+  useEffect(() => {
+    const f = folders.find(fd => fd.id === folderId) ?? folders[0];
+    if (!f?.files.length) return;
+    setMessages(prev => {
+      if (prev.length > 0) return prev;
+      const intro: Message = {
+        role: 'bot',
+        content: `**${f.name}** 폴더에 문서 **${f.files.length}개**가 준비됐습니다.\n\n${f.files.map(fl => `• **${fl.name}**${fl.pageCount ? ` (${fl.pageCount}페이지)` : ''}`).join('\n')}\n\n궁금한 내용을 자유롭게 질문해주세요!`,
+        ts: Date.now(),
+      };
+      try { lsSave(LS.messages, [intro]); } catch {}
+      return [intro];
+    });
+  }, [folderId, folders]);
+
   // ── 자동 에러 해제 ────────────────────────────────────────
   useEffect(() => {
     if (!error) return;
@@ -656,8 +672,14 @@ export default function App() {
   const clearChat = () => {
     if (!messages.length) return;
     askConfirm('대화 내용을 모두 삭제할까요?', () => {
-      setMessages([]);
-      try { lsSave(LS.messages, []); } catch {}
+      const f = folders.find(fd => fd.id === folderId) ?? folders[0];
+      const intro: Message[] = f?.files.length ? [{
+        role: 'bot',
+        content: `**${f.name}** 폴더에 문서 **${f.files.length}개**가 준비됐습니다.\n\n${f.files.map(fl => `• **${fl.name}**${fl.pageCount ? ` (${fl.pageCount}페이지)` : ''}`).join('\n')}\n\n궁금한 내용을 자유롭게 질문해주세요!`,
+        ts: Date.now(),
+      }] : [];
+      setMessages(intro);
+      try { lsSave(LS.messages, intro); } catch {}
     });
   };
 
