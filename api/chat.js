@@ -117,7 +117,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { folderId, folderName, query, history = [] } = req.body;
+    const { folderId, folderName, query, history = [], regulationContext = '' } = req.body;
     if (!query) { res.status(400).json({ error: '질문이 없습니다.' }); return; }
 
     let finalRes = null;
@@ -128,10 +128,10 @@ export default async function handler(req, res) {
       const contextText = chunks.map(c => `[${c.file_name}]\n${c.content}`).join('\n\n');
 
       const system = `광덕 교사용 교육행정 AI 비서입니다. 폴더: "${folderName ?? ''}"
-규칙: ①아래 문서 내용만 근거로 답변 ②출처 파일명 반드시 명시 ③문서에 없으면 "문서에서 확인 불가" ④간결·친절하게
+규칙: ①아래 문서·규정집 내용을 근거로 답변 ②출처 파일명/페이지 반드시 명시 ③문서에 없으면 "문서에서 확인 불가" ④간결·친절하게
 
-[문서]
-${contextText || '(문서 없음)'}`;
+[업로드 문서]
+${contextText || '(문서 없음)'}${regulationContext ? `\n\n[광덕 규정집]\n${regulationContext}` : ''}`;
 
       const messages = [
         { role: 'system', content: system },

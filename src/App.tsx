@@ -25,10 +25,33 @@ const getPdfjs = async () => {
 };
 
 // ── Types ─────────────────────────────────────────────────
-interface FileData   { id: string; name: string; chunkCount?: number; pageCount?: number; }
-interface FolderData { id: string; name: string; files: FileData[]; intro?: string; }
-interface Message    { role: 'user' | 'bot'; content: string; ts: number; }
-interface ConfirmDlg { msg: string; onConfirm: () => void; }
+interface FileData        { id: string; name: string; chunkCount?: number; pageCount?: number; }
+interface FolderData      { id: string; name: string; files: FileData[]; intro?: string; }
+interface RegulationPage  { page: number; text: string; chapter?: string; title?: string; section?: string; }
+interface Message         { role: 'user' | 'bot'; content: string; ts: number; regulationSources?: RegulationPage[]; }
+interface ConfirmDlg      { msg: string; onConfirm: () => void; }
+
+// ── 규정집 검색 ────────────────────────────────────────────
+let _regulationsCache: RegulationPage[] | null = null;
+const getRegulations = async (): Promise<RegulationPage[]> => {
+  if (_regulationsCache) return _regulationsCache;
+  try {
+    const res = await fetch('/data/광덕_규정_pages.json');
+    if (!res.ok) return [];
+    _regulationsCache = await res.json();
+    return _regulationsCache ?? [];
+  } catch { return []; }
+};
+const searchRegulations = (pages: RegulationPage[], query: string, maxPages = 5): RegulationPage[] => {
+  const keywords = query.replace(/[^\w\s가-힣]/g, ' ').split(/\s+/).filter(w => w.length > 1).slice(0, 8);
+  if (!keywords.length) return [];
+  const scored = pages.map(p => {
+    const lower = p.text.toLowerCase();
+    const score = keywords.reduce((s, kw) => s + (lower.match(new RegExp(kw.toLowerCase(), 'g'))?.length ?? 0), 0);
+    return { p, score };
+  });
+  return scored.filter(x => x.score > 0).sort((a, b) => b.score - a.score).slice(0, maxPages).map(x => x.p);
+};
 
 type UserStatus  = 'pending' | 'active' | 'inactive' | 'rejected';
 type Affiliation = 'middle' | 'high';
@@ -530,8 +553,17 @@ export default function App() {
     setMessages(prev => [...prev, { role: 'user', content: msg, ts: Date.now() }]);
     setLoading(true); setError(null);
 
+    let matchedRegs: RegulationPage[] = [];
+
     try {
-      if (!(folder?.files.length)) {
+      // 규정집 검색
+      const regulations = await getRegulations();
+      matchedRegs = searchRegulations(regulations, msg);
+      const regulationContext = matchedRegs.length
+        ? matchedRegs.map(p => `[규정집 p.${p.page}${p.chapter ? ' ' + p.chapter : ''}]\n${p.text}`).join('\n\n').slice(0, 3000)
+        : '';
+
+      if (!(folder?.files.length) && !regulationContext) {
         addBot('현재 폴더에 파일이 없습니다. 왼쪽 사이드바에서 PDF를 먼저 업로드해주세요.');
         setLoading(false);
         return;
@@ -556,6 +588,7 @@ export default function App() {
           folderName: folder?.name,
           query: msg,
           history,
+          regulationContext,
         }),
       });
 
@@ -577,6 +610,17 @@ export default function App() {
           const a = [...prev];
           a[a.length - 1] = { ...a[a.length - 1], content: full };
           return a;
+        });
+      }
+      // 스트리밍 완료 후 규정 출처 첨부
+      if (matchedRegs.length > 0) {
+        setMessages(prev => {
+          const updated = [...prev];
+          const idx = updated.length - 1;
+          if (updated[idx]?.role === 'bot') {
+            updated[idx] = { ...updated[idx], regulationSources: matchedRegs };
+          }
+          return updated;
         });
       }
     } catch (e: any) {
@@ -1897,6 +1941,18 @@ export default function App() {
                         : <ReactMarkdown components={mdComponents as any}>{m.content || '▋'}</ReactMarkdown>
                       }
                     </div>
+                    {m.role === 'bot' && m.regulationSources && m.regulationSources.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1 mt-2 px-1">
+                        <span className={`text-[10px] flex items-center gap-1 ${muted}`}>
+                          <FileSearch className="w-3 h-3" />규정 출처
+                        </span>
+                        {m.regulationSources.map((src, idx) => (
+                          <span key={idx} className={`text-[10px] px-2 py-0.5 rounded-full border ${d('bg-zinc-50 border-zinc-200 text-zinc-500','bg-zinc-800/60 border-zinc-700 text-zinc-400')}`}>
+                            p.{src.page}{src.chapter ? ` · ${src.chapter}` : ''}{src.section ? ` ${src.section}` : ''}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                     <div className={`flex items-center gap-2 mt-1.5 px-1 opacity-0 group-hover:opacity-100 transition-opacity ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
                       <span className={`text-[10px] ${muted}`}>
                         {new Date(m.ts).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
