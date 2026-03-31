@@ -1930,7 +1930,7 @@ export default function App() {
               )}
             </div>
           ) : (
-            <div className="max-w-3xl mx-auto space-y-6" aria-live="polite" aria-label="대화 내용">
+            <div className="relative z-10 max-w-3xl mx-auto space-y-6" aria-live="polite" aria-label="대화 내용">
               {messages.map((m, i) => (
                 <motion.div key={i}
                   initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
