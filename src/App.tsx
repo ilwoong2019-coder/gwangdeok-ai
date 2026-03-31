@@ -455,18 +455,27 @@ export default function App() {
 
 
   // ── 파일 업로드 ───────────────────────────────────────────
-  const uploadFiles = async (files: File[], targetId?: string) => {
-    const pdfs = files.filter(f => f.type === 'application/pdf');
-    if (!pdfs.length) { setError('PDF 파일만 업로드 가능합니다.'); return; }
+  const isTextFile = (f: File) =>
+    f.type.startsWith('text/') ||
+    /\.(txt|md|json|csv|xml|html?|jsx?|tsx?|py|java|c|cpp|h|css|ya?ml|log|sql|sh|ini|toml|rst)$/i.test(f.name);
 
-    const oversized = pdfs.find(f => f.size > MAX_FILE_MB * 1024 * 1024);
+  const uploadFiles = async (files: File[], targetId?: string) => {
+    const supported   = files.filter(f => f.type === 'application/pdf' || isTextFile(f));
+    const unsupported = files.filter(f => !supported.includes(f));
+
+    if (!supported.length) {
+      setError('지원하지 않는 파일 형식입니다. PDF 또는 텍스트 파일(TXT, MD, JSON, CSV 등)을 업로드하세요.');
+      return;
+    }
+
+    const oversized = supported.find(f => f.size > MAX_FILE_MB * 1024 * 1024);
     if (oversized) { setError(`"${oversized.name}" 파일이 ${MAX_FILE_MB}MB를 초과합니다.`); return; }
 
     const tid = targetId ?? uploadTarget.current ?? folderId;
     const targetFolder = folders.find(f => f.id === tid);
 
-    const dupes     = pdfs.filter(f =>  targetFolder?.files.some(ef => ef.name === f.name));
-    const toProcess = pdfs.filter(f => !targetFolder?.files.some(ef => ef.name === f.name));
+    const dupes     = supported.filter(f =>  targetFolder?.files.some(ef => ef.name === f.name));
+    const toProcess = supported.filter(f => !targetFolder?.files.some(ef => ef.name === f.name));
     if (!toProcess.length) { setError('선택한 파일이 이미 모두 업로드되어 있습니다.'); return; }
 
     setError(null);
@@ -475,18 +484,26 @@ export default function App() {
       for (let i = 0; i < toProcess.length; i++) {
         const f = toProcess[i];
         setProcessingMsg(`(${i + 1}/${toProcess.length}) ${f.name} 텍스트 추출 중...`);
-        const pdfjs = await getPdfjs();
-        const buf = await f.arrayBuffer();
-        const pdf = await pdfjs.getDocument({ data: buf }).promise;
-        const pageCount = pdf.numPages;
+
         let text = '';
-        for (let p = 1; p <= pageCount; p++) {
-          if (p % 50 === 0) setProcessingMsg(`(${i + 1}/${toProcess.length}) ${f.name} — ${p}/${pageCount}페이지`);
-          const page = await pdf.getPage(p);
-          const c = await page.getTextContent();
-          text += c.items.map((item: any) => item.str).join(' ') + '\n';
+        let pageCount: number | undefined;
+
+        if (f.type === 'application/pdf') {
+          const pdfjs = await getPdfjs();
+          const buf = await f.arrayBuffer();
+          const pdf = await pdfjs.getDocument({ data: buf }).promise;
+          pageCount = pdf.numPages;
+          for (let p = 1; p <= pageCount; p++) {
+            if (p % 50 === 0) setProcessingMsg(`(${i + 1}/${toProcess.length}) ${f.name} — ${p}/${pageCount}페이지`);
+            const page = await pdf.getPage(p);
+            const c = await page.getTextContent();
+            text += c.items.map((item: any) => item.str).join(' ') + '\n';
+          }
+          if (!text.trim()) throw new Error(`"${f.name}"에서 텍스트를 추출할 수 없습니다. 스캔 이미지 PDF일 수 있습니다.`);
+        } else {
+          text = await f.text();
+          if (!text.trim()) throw new Error(`"${f.name}"이 비어 있거나 읽을 수 없습니다.`);
         }
-        if (!text.trim()) throw new Error(`"${f.name}"에서 텍스트를 추출할 수 없습니다. 스캔 이미지 PDF일 수 있습니다.`);
 
         const fileId = crypto.randomUUID();
         const chunks = chunkText(text);
@@ -506,8 +523,9 @@ export default function App() {
       });
       setFolderId(tid);
 
-      let msg = `✅ **${targetFolder?.name ?? '폴더'}**에 ${added.length}개 파일이 추가됐습니다.\n\n${added.map(f => `• \`${f.name}\` (${f.pageCount}페이지, ${f.chunkCount}청크)`).join('\n')}`;
-      if (dupes.length) msg += `\n\n⚠️ 이미 존재하는 파일 ${dupes.length}개는 건너뜀: ${dupes.map(f => f.name).join(', ')}`;
+      let msg = `✅ **${targetFolder?.name ?? '폴더'}**에 ${added.length}개 파일이 추가됐습니다.\n\n${added.map(f => `• \`${f.name}\`${f.pageCount ? ` (${f.pageCount}페이지, ${f.chunkCount}청크)` : ` (${f.chunkCount}청크)`}`).join('\n')}`;
+      if (dupes.length)      msg += `\n\n⚠️ 이미 존재하는 파일 ${dupes.length}개는 건너뜀: ${dupes.map(f => f.name).join(', ')}`;
+      if (unsupported.length) msg += `\n\n❌ 지원하지 않는 형식 ${unsupported.length}개 건너뜀: ${unsupported.map(f => f.name).join(', ')}`;
       msg += '\n\n이제 이 폴더의 문서에 대해 자유롭게 질문해주세요!';
       addBot(msg);
     } catch (e: any) {
@@ -1651,7 +1669,7 @@ export default function App() {
                     </button>
                   )}
                 </div>
-                <input ref={fileRef} type="file" accept=".pdf" multiple className="hidden"
+                <input ref={fileRef} type="file" accept=".pdf,.txt,.md,.json,.csv,.xml,.html,.htm,.js,.ts,.jsx,.tsx,.py,.yaml,.yml,.log,.sql,.sh,.ini,.toml,.rst,.cpp,.h,.java,.c,.css" multiple className="hidden"
                   onChange={e => { if (e.target.files?.length) uploadFiles(Array.from(e.target.files), uploadTarget.current || folderId); }} />
 
 
@@ -1906,7 +1924,7 @@ export default function App() {
                     </p>
                   </div>
                   {devMode && (
-                    <p className={`text-xs ${muted}`}>PDF만 지원 · 최대 {MAX_FILE_MB}MB</p>
+                    <p className={`text-xs ${muted}`}>PDF · TXT · MD · JSON · CSV 등 · 최대 {MAX_FILE_MB}MB</p>
                   )}
                 </motion.div>
               )}
