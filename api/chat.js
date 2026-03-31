@@ -4,28 +4,35 @@ import { REGULATION_INDEX } from './regulation_index.js';
 const CHUNK_CANDIDATES = 30;
 const MAX_HISTORY_MSGS = 4;
 
-// 제공자별 설정 (maxHistory: 히스토리 메시지 수)
+// 제공자별 설정
+// contextChars: PDF 청크 최대 길이 / regCtxChars: 규정 본문 최대 길이 / includeIndex: 규정 인덱스 포함 여부
 const PROVIDERS = {
   gemini: {
     url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
     model: 'gemini-2.0-flash',
-    contextChars: 50000,
+    contextChars: 44000,
     maxTokens: 2048,
     maxHistory: 6,
+    regCtxChars: 3000,
+    includeIndex: true,
   },
   groq_70b: {
     url: 'https://api.groq.com/openai/v1/chat/completions',
     model: 'llama-3.3-70b-versatile',
-    contextChars: 10000,
+    contextChars: 6000,
     maxTokens: 1800,
     maxHistory: 2,
+    regCtxChars: 1500,
+    includeIndex: true,
   },
   groq_8b: {
     url: 'https://api.groq.com/openai/v1/chat/completions',
     model: 'llama-3.1-8b-instant',
-    contextChars: 3000,
+    contextChars: 1500,
     maxTokens: 600,
-    maxHistory: 0, // 히스토리 없이 — 6,000 TPM 한도
+    maxHistory: 0,
+    regCtxChars: 800,
+    includeIndex: false,
   },
 };
 
@@ -128,14 +135,12 @@ export default async function handler(req, res) {
       const chunks = await searchChunks(folderId, query, provider.contextChars);
       const contextText = chunks.map(c => `[${c.file_name}]\n${c.content}`).join('\n\n');
 
+      const regCtx = regulationContext.slice(0, provider.regCtxChars);
       const system = `광덕고등학교 교사용 교육행정 AI 비서입니다. 폴더: "${folderName ?? ''}"
 규칙: ①아래 문서·규정집 내용을 근거로 답변 ②출처(규정명·조항·페이지) 반드시 명시 ③문서에 없으면 "문서에서 확인 불가" ④간결·친절하게
-
-[광덕고 규정집 인덱스]
-${REGULATION_INDEX}
-
+${provider.includeIndex ? `\n[광덕고 규정집 인덱스]\n${REGULATION_INDEX}\n` : ''}
 [업로드 문서]
-${contextText || '(문서 없음)'}${regulationContext ? `\n\n[광덕 규정집 본문]\n${regulationContext}` : ''}`;
+${contextText || '(문서 없음)'}${regCtx ? `\n\n[광덕 규정집 본문]\n${regCtx}` : ''}`;
 
       const messages = [
         { role: 'system', content: system },
