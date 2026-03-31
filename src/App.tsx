@@ -1853,14 +1853,18 @@ export default function App() {
         </nav>
 
         {/* 메시지 영역 */}
-        <div
-          className="flex-1 overflow-y-auto hide-scrollbar p-4 md:p-6 relative"
-          role="main"
-          style={{ backgroundImage: 'url(/abc.png)', backgroundSize: 'cover', backgroundPosition: 'center' }}
-        >
-          <div className={`absolute inset-0 pointer-events-none transition-colors duration-300 ${chatNotStarted ? d('bg-white/72','bg-zinc-950/60') : d('bg-white/82','bg-zinc-950/72')}`} />
+        <div className="flex-1 relative overflow-hidden" role="main">
+          {/* 배경 + 오버레이: 스크롤과 무관하게 고정 */}
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{ backgroundImage: 'url(/abc.png)', backgroundSize: 'cover', backgroundPosition: 'center' }}
+          >
+            <div className={`absolute inset-0 transition-colors duration-300 ${chatNotStarted ? d('bg-white/72','bg-zinc-950/60') : d('bg-white/82','bg-zinc-950/72')}`} />
+          </div>
+          {/* 스크롤 영역: 배경과 분리 */}
+          <div className="relative z-10 h-full overflow-y-auto hide-scrollbar p-4 md:p-6">
           {chatNotStarted ? (
-            <div className="relative z-10 max-w-2xl mx-auto mt-8 md:mt-12">
+            <div className="max-w-2xl mx-auto mt-8 md:mt-12">
               {/* 소개 메시지 (봇 메시지가 있을 때) */}
               {messages.length > 0 && messages[0].role === 'bot' && (
                 <div className={`mb-6 px-4 py-3 rounded-2xl text-sm leading-relaxed ${d('bg-white/90 text-zinc-700 shadow-sm border border-zinc-100','bg-zinc-800/90 text-zinc-300 border border-zinc-700')}`}>
@@ -1930,7 +1934,7 @@ export default function App() {
               )}
             </div>
           ) : (
-            <div className="relative z-10 max-w-3xl mx-auto space-y-6" aria-live="polite" aria-label="대화 내용">
+            <div className="max-w-3xl mx-auto space-y-6" aria-live="polite" aria-label="대화 내용">
               {messages.map((m, i) => (
                 <motion.div key={i}
                   initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
@@ -2010,6 +2014,7 @@ export default function App() {
               <div ref={endRef} />
             </div>
           )}
+          </div>
         </div>
 
         {/* 입력창 */}
