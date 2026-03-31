@@ -171,10 +171,10 @@ ${contextText || '(문서 없음)'}${regCtx ? `\n\n[광덕 규정집 본문]\n${
         const errText = await r.text().catch(() => '');
         errors.push(`${provider.model}(${r.status}): ${errText.slice(0, 120)}`);
 
-        // 한도 초과·요청 오류면 다음 제공자로
-        if (r.status === 429 || r.status === 413 || r.status === 400) continue;
+        // 다음 제공자로 넘길 오류 (한도초과·요청오류·서버오류)
+        if ([429, 413, 400, 500, 502, 503, 504].includes(r.status)) continue;
 
-        // 그 외 오류(401 등)는 바로 반환
+        // 인증 오류(401, 403)는 바로 반환
         res.status(r.status).send(errText);
         return;
       } catch (e) {
