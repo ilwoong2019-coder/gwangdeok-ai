@@ -32,14 +32,24 @@ interface Message         { role: 'user' | 'bot'; content: string; ts: number; r
 interface ConfirmDlg      { msg: string; onConfirm: () => void; }
 
 // ── 규정집 검색 ────────────────────────────────────────────
-let _regulationsCache: RegulationPage[] | null = null;
+let _regulationsBase: RegulationPage[] | null = null;  // 원본 JSON (영구 캐시)
+let _regulationsCache: RegulationPage[] | null = null; // 패치 병합본 (수정 시 무효화)
+
 const getRegulations = async (): Promise<RegulationPage[]> => {
   if (_regulationsCache) return _regulationsCache;
   try {
-    const res = await fetch('/data/광덕_규정_pages.json');
-    if (!res.ok) return [];
-    _regulationsCache = await res.json();
-    return _regulationsCache ?? [];
+    if (!_regulationsBase) {
+      const res = await fetch('/data/광덕_규정_pages.json');
+      if (!res.ok) return [];
+      _regulationsBase = await res.json() ?? [];
+    }
+    if (!supabase) { _regulationsCache = _regulationsBase; return _regulationsBase ?? []; }
+    const { data } = await supabase.from('regulation_patches').select('page,text,chapter,title,section');
+    const patches: RegulationPage[] = data ?? [];
+    if (!patches.length) { _regulationsCache = _regulationsBase; return _regulationsBase ?? []; }
+    const pmap = new Map(patches.map(p => [p.page, p]));
+    _regulationsCache = (_regulationsBase ?? []).map(p => pmap.has(p.page) ? { ...p, ...pmap.get(p.page)! } : p);
+    return _regulationsCache;
   } catch { return []; }
 };
 const searchRegulations = (pages: RegulationPage[], query: string, maxPages = 8): RegulationPage[] => {
@@ -252,6 +262,45 @@ async function sbCheckNameExists(name: string, affiliation: Affiliation): Promis
   } catch { return false; }
 }
 
+// ── 규정집 패치 (Supabase) ────────────────────────────────
+// 필요한 Supabase 테이블:
+// CREATE TABLE regulation_patches (
+//   page INTEGER PRIMARY KEY,
+//   text TEXT NOT NULL,
+//   chapter TEXT,
+//   title TEXT,
+//   section TEXT,
+//   updated_at TIMESTAMPTZ DEFAULT NOW()
+// );
+async function sbLoadRegPatches(): Promise<RegulationPage[]> {
+  if (!supabase) return [];
+  try {
+    const { data, error } = await supabase.from('regulation_patches').select('*').order('page');
+    if (error || !data) return [];
+    return data as RegulationPage[];
+  } catch { return []; }
+}
+async function sbUpsertRegPatch(patch: RegulationPage): Promise<boolean> {
+  if (!supabase) return false;
+  try {
+    const { error } = await supabase.from('regulation_patches').upsert({
+      page: patch.page, text: patch.text,
+      chapter: patch.chapter ?? null,
+      title: patch.title ?? null,
+      section: patch.section ?? null,
+      updated_at: new Date().toISOString(),
+    });
+    return !error;
+  } catch { return false; }
+}
+async function sbDeleteRegPatch(page: number): Promise<boolean> {
+  if (!supabase) return false;
+  try {
+    const { error } = await supabase.from('regulation_patches').delete().eq('page', page);
+    return !error;
+  } catch { return false; }
+}
+
 function lsGet<T>(key: string, fallback: T): T {
   try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
   catch { return fallback; }
@@ -347,6 +396,17 @@ export default function App() {
   const [regPwConfirm, setRegPwConfirm] = useState('');
   const [authError,  setAuthError]  = useState('');
   const [authLoading, setAuthLoading] = useState(false);
+
+  // ── 규정집 수정 상태 (관리자) ─────────────────────────────
+  const [showRegEdit,    setShowRegEdit]    = useState(false);
+  const [regBasePages,   setRegBasePages]   = useState<RegulationPage[]>([]);
+  const [regPatchMap,    setRegPatchMap]    = useState<Map<number, RegulationPage>>(new Map());
+  const [regSearch,      setRegSearch]      = useState('');
+  const [selRegPage,     setSelRegPage]     = useState<RegulationPage | null>(null);
+  const [regEditText,    setRegEditText]    = useState('');
+  const [regSaving,      setRegSaving]      = useState(false);
+  const [regPagesLoading, setRegPagesLoading] = useState(false);
+  const [showOriginal,   setShowOriginal]   = useState(false);
 
   // ── 사용자 관리 상태 (관리자) ─────────────────────────────
   const [showUserMgmt, setShowUserMgmt]     = useState(false);
@@ -897,6 +957,56 @@ export default function App() {
     askConfirm('이 사용자를 삭제할까요? 이 작업은 되돌릴 수 없습니다.', async () => {
       const ok = await sbDeleteUserRecord(id);
       if (ok) setAllUsers(prev => prev.filter(u => u.id !== id));
+    });
+  };
+
+  // ── 규정집 수정 핸들러 ────────────────────────────────────
+  const openRegEdit = async () => {
+    setShowRegEdit(true);
+    setSelRegPage(null);
+    setRegSearch('');
+    setRegPagesLoading(true);
+    try {
+      const base = await getRegulations(); // 패치 병합본
+      const patches = await sbLoadRegPatches();
+      const base2 = _regulationsBase ?? base;
+      setRegBasePages(base2);
+      setRegPatchMap(new Map(patches.map(p => [p.page, p])));
+    } finally { setRegPagesLoading(false); }
+  };
+
+  const selectRegPage = (page: RegulationPage) => {
+    setSelRegPage(page);
+    setRegEditText(regPatchMap.has(page.page)
+      ? regPatchMap.get(page.page)!.text
+      : page.text);
+    setShowOriginal(false);
+  };
+
+  const saveRegPatch = async () => {
+    if (!selRegPage) return;
+    setRegSaving(true);
+    try {
+      const patch: RegulationPage = { ...selRegPage, text: regEditText };
+      const ok = await sbUpsertRegPatch(patch);
+      if (ok) {
+        setRegPatchMap(prev => new Map(prev).set(selRegPage.page, patch));
+        _regulationsCache = null; // 병합 캐시 무효화
+      }
+    } finally { setRegSaving(false); }
+  };
+
+  const resetRegPatch = (page: number) => {
+    askConfirm('이 페이지를 원본으로 초기화할까요?', async () => {
+      const ok = await sbDeleteRegPatch(page);
+      if (ok) {
+        setRegPatchMap(prev => { const m = new Map(prev); m.delete(page); return m; });
+        if (selRegPage?.page === page) {
+          const orig = regBasePages.find(p => p.page === page);
+          if (orig) setRegEditText(orig.text);
+        }
+        _regulationsCache = null;
+      }
     });
   };
 
@@ -1782,6 +1892,17 @@ export default function App() {
                   <Users className="w-4 h-4" />
                 </button>
               )}
+              {/* 규정 수정 (관리자만) */}
+              {devMode && (
+                <button
+                  onClick={openRegEdit}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-all ${d('hover:bg-amber-50 text-amber-700','hover:bg-amber-950/30 text-amber-400')} ${hover_light}`}
+                  aria-label="규정집 수정"
+                >
+                  <span className="text-xs font-medium">규정집 수정</span>
+                  <Pencil className="w-4 h-4" />
+                </button>
+              )}
               {/* 일반 사용자 로그아웃 */}
               {!devMode && currentUser && (
                 <button
@@ -2347,6 +2468,194 @@ export default function App() {
                       )}
                     </div>
                   )}
+                </div>
+              </motion.div>
+            </motion.div>
+          );
+        })()}
+      </AnimatePresence>
+
+      {/* ════════════════════════════════════════
+          규정집 수정 패널 (관리자 전용)
+      ════════════════════════════════════════ */}
+      <AnimatePresence>
+        {showRegEdit && devMode && (() => {
+          const filtered = regBasePages.filter(p => {
+            const q = regSearch.trim().toLowerCase();
+            if (!q) return true;
+            return String(p.page).includes(q) ||
+              p.text.toLowerCase().includes(q) ||
+              (p.chapter ?? '').toLowerCase().includes(q);
+          });
+          const patchedCount = regPatchMap.size;
+
+          return (
+            <motion.div
+              key="reg-edit-panel"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4"
+              style={{ background: 'rgba(0,0,0,0.55)' }}
+              onClick={e => { if (e.target === e.currentTarget) setShowRegEdit(false); }}
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+                className={`relative w-full max-w-5xl rounded-2xl shadow-2xl flex flex-col overflow-hidden ${d('bg-white','bg-zinc-900')} max-h-[90vh]`}
+                onClick={e => e.stopPropagation()}
+              >
+                {/* 헤더 */}
+                <div className={`flex items-center justify-between px-6 py-4 border-b ${d('border-zinc-200','border-zinc-700')}`}>
+                  <div>
+                    <p className={`font-bold text-base ${d('text-zinc-800','text-zinc-100')}`}>규정집 내용 수정</p>
+                    <p className={`text-xs mt-0.5 ${d('text-zinc-500','text-zinc-400')}`}>
+                      총 {regBasePages.length}페이지 중 {patchedCount}페이지 수정됨
+                    </p>
+                  </div>
+                  <button onClick={() => setShowRegEdit(false)} aria-label="닫기"
+                    className={`p-2 rounded-xl ${d('hover:bg-zinc-100','hover:bg-zinc-800')} transition-colors`}>
+                    <X className={`w-5 h-5 ${d('text-zinc-600','text-zinc-300')}`} />
+                  </button>
+                </div>
+
+                {/* 본문: 2컬럼 */}
+                <div className="flex flex-1 overflow-hidden min-h-0">
+                  {/* 왼쪽: 페이지 목록 */}
+                  <div className={`w-56 flex-shrink-0 flex flex-col border-r ${d('border-zinc-200','border-zinc-700')}`}>
+                    {/* 검색 */}
+                    <div className={`px-3 py-2 border-b ${d('border-zinc-200','border-zinc-700')}`}>
+                      <div className={`flex items-center gap-1.5 rounded-lg px-2 py-1.5 ${d('bg-zinc-100','bg-zinc-800')}`}>
+                        <Search className={`w-3.5 h-3.5 flex-shrink-0 ${d('text-zinc-400','text-zinc-500')}`} />
+                        <input
+                          value={regSearch}
+                          onChange={e => setRegSearch(e.target.value)}
+                          placeholder="페이지·내용 검색"
+                          className={`flex-1 bg-transparent text-xs outline-none ${d('text-zinc-700 placeholder-zinc-400','text-zinc-200 placeholder-zinc-500')}`}
+                        />
+                        {regSearch && (
+                          <button onClick={() => setRegSearch('')} className="flex-shrink-0">
+                            <X className={`w-3 h-3 ${d('text-zinc-400','text-zinc-500')}`} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 목록 */}
+                    <div className="flex-1 overflow-y-auto">
+                      {regPagesLoading ? (
+                        <div className="flex items-center justify-center py-10">
+                          <Loader2 className={`w-5 h-5 animate-spin ${d('text-zinc-400','text-zinc-500')}`} />
+                        </div>
+                      ) : filtered.length === 0 ? (
+                        <p className={`text-xs text-center py-8 ${d('text-zinc-400','text-zinc-500')}`}>검색 결과 없음</p>
+                      ) : (
+                        filtered.map(p => {
+                          const isPatched = regPatchMap.has(p.page);
+                          const isSelected = selRegPage?.page === p.page;
+                          return (
+                            <button key={p.page} onClick={() => selectRegPage(p)}
+                              className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-colors text-xs border-b ${d('border-zinc-100','border-zinc-800')}
+                                ${isSelected
+                                  ? d('bg-amber-50 text-amber-800','bg-amber-950/40 text-amber-300')
+                                  : d('hover:bg-zinc-50 text-zinc-700','hover:bg-zinc-800 text-zinc-300')}`}>
+                              <span className={`font-mono font-semibold w-8 flex-shrink-0 ${d('text-zinc-500','text-zinc-400')}`}>
+                                p.{p.page}
+                              </span>
+                              <span className="flex-1 truncate">
+                                {p.chapter || p.text.slice(0, 20).replace(/\s+/g, ' ')}
+                              </span>
+                              {isPatched && (
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" title="수정됨" />
+                              )}
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 오른쪽: 편집 영역 */}
+                  <div className="flex-1 flex flex-col overflow-hidden">
+                    {!selRegPage ? (
+                      <div className={`flex-1 flex flex-col items-center justify-center gap-3 ${d('text-zinc-400','text-zinc-500')}`}>
+                        <FileText className="w-10 h-10 opacity-30" />
+                        <p className="text-sm">왼쪽 목록에서 수정할 페이지를 선택하세요</p>
+                        {patchedCount > 0 && (
+                          <p className={`text-xs px-3 py-1.5 rounded-full ${d('bg-amber-50 text-amber-600','bg-amber-950/30 text-amber-400')}`}>
+                            ✏️ 수정된 페이지 {patchedCount}개 — 노란 점으로 표시됩니다
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex-1 flex flex-col overflow-hidden">
+                        {/* 선택 페이지 헤더 */}
+                        <div className={`px-5 py-3 border-b flex items-center justify-between ${d('border-zinc-200','border-zinc-700')}`}>
+                          <div>
+                            <span className={`font-bold text-sm ${d('text-zinc-800','text-zinc-100')}`}>p.{selRegPage.page}</span>
+                            {selRegPage.chapter && (
+                              <span className={`ml-2 text-xs ${d('text-zinc-500','text-zinc-400')}`}>{selRegPage.chapter}</span>
+                            )}
+                            {regPatchMap.has(selRegPage.page) && (
+                              <span className={`ml-2 text-xs px-1.5 py-0.5 rounded-full ${d('bg-amber-100 text-amber-600','bg-amber-950/40 text-amber-400')}`}>수정됨</span>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => setShowOriginal(v => !v)}
+                            className={`text-xs px-2.5 py-1 rounded-lg border transition-colors ${d('border-zinc-200 hover:bg-zinc-50 text-zinc-600','border-zinc-700 hover:bg-zinc-800 text-zinc-400')}`}
+                          >
+                            {showOriginal ? '원본 숨기기' : '원본 보기'}
+                          </button>
+                        </div>
+
+                        {/* 원본 보기 */}
+                        {showOriginal && (
+                          <div className={`px-5 py-3 border-b text-xs font-mono whitespace-pre-wrap max-h-40 overflow-y-auto ${d('border-zinc-200 bg-zinc-50 text-zinc-500','border-zinc-700 bg-zinc-800/50 text-zinc-400')}`}>
+                            {regBasePages.find(p => p.page === selRegPage.page)?.text ?? selRegPage.text}
+                          </div>
+                        )}
+
+                        {/* 텍스트 에디터 */}
+                        <div className="flex-1 overflow-hidden p-4">
+                          <textarea
+                            value={regEditText}
+                            onChange={e => setRegEditText(e.target.value)}
+                            className={`w-full h-full resize-none rounded-xl border p-3 text-xs font-mono leading-relaxed outline-none focus:ring-2 focus:ring-amber-400/40 transition-all ${d('border-zinc-200 bg-white text-zinc-700','border-zinc-700 bg-zinc-800 text-zinc-200')}`}
+                            placeholder="규정 내용을 여기에 입력하세요..."
+                            spellCheck={false}
+                          />
+                        </div>
+
+                        {/* 하단 버튼 */}
+                        <div className={`px-5 py-3 border-t flex items-center justify-between gap-3 ${d('border-zinc-200','border-zinc-700')}`}>
+                          <div>
+                            {regPatchMap.has(selRegPage.page) && (
+                              <button
+                                onClick={() => resetRegPatch(selRegPage.page)}
+                                className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${d('border-red-200 text-red-500 hover:bg-red-50','border-red-900/50 text-red-400 hover:bg-red-950/30')}`}
+                              >
+                                원본으로 초기화
+                              </button>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-xs ${d('text-zinc-400','text-zinc-500')}`}>
+                              {regEditText.length}자
+                            </span>
+                            <button
+                              onClick={saveRegPatch}
+                              disabled={regSaving || regEditText === (regPatchMap.get(selRegPage.page)?.text ?? selRegPage.text)}
+                              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all
+                                ${regSaving || regEditText === (regPatchMap.get(selRegPage.page)?.text ?? selRegPage.text)
+                                  ? d('bg-zinc-100 text-zinc-400','bg-zinc-800 text-zinc-500')
+                                  : 'bg-amber-500 hover:bg-amber-600 text-white'}`}
+                            >
+                              {regSaving
+                                ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> 저장 중...</>
+                                : <><Check className="w-3.5 h-3.5" /> 저장</>}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </motion.div>
             </motion.div>
