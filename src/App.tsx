@@ -42,12 +42,24 @@ const getRegulations = async (): Promise<RegulationPage[]> => {
     return _regulationsCache ?? [];
   } catch { return []; }
 };
-const searchRegulations = (pages: RegulationPage[], query: string, maxPages = 5): RegulationPage[] => {
-  const keywords = query.replace(/[^\w\s가-힣]/g, ' ').split(/\s+/).filter(w => w.length > 1).slice(0, 8);
+const searchRegulations = (pages: RegulationPage[], query: string, maxPages = 8): RegulationPage[] => {
+  const cleaned = query.replace(/[^\w\s가-힣]/g, ' ');
+  const rawWords = cleaned.split(/\s+/).filter(w => w.length > 1);
+  const kwSet = new Set<string>();
+  for (const word of rawWords) {
+    kwSet.add(word.toLowerCase());
+    if (/[가-힣]/.test(word) && word.length >= 3) kwSet.add(word.slice(0, -1).toLowerCase());
+    if (/[가-힣]/.test(word) && word.length >= 4) kwSet.add(word.slice(0, 3).toLowerCase());
+  }
+  const keywords = [...kwSet].slice(0, 14);
   if (!keywords.length) return [];
   const scored = pages.map(p => {
     const lower = p.text.toLowerCase();
-    const score = keywords.reduce((s, kw) => s + (lower.match(new RegExp(kw.toLowerCase(), 'g'))?.length ?? 0), 0);
+    let score = 0;
+    for (const kw of keywords) {
+      const count = (lower.match(new RegExp(kw, 'g'))?.length ?? 0);
+      if (count > 0) { score += count; score += 1; }
+    }
     return { p, score };
   });
   return scored.filter(x => x.score > 0).sort((a, b) => b.score - a.score).slice(0, maxPages).map(x => x.p);
@@ -578,7 +590,7 @@ export default function App() {
       const regulations = await getRegulations();
       matchedRegs = searchRegulations(regulations, msg);
       const regulationContext = matchedRegs.length
-        ? matchedRegs.map(p => `[규정집 p.${p.page}${p.chapter ? ' ' + p.chapter : ''}]\n${p.text}`).join('\n\n').slice(0, 3000)
+        ? matchedRegs.map(p => `[규정집 p.${p.page}${p.chapter ? ' ' + p.chapter : ''}]\n${p.text}`).join('\n\n').slice(0, 5000)
         : '';
 
       if (!(folder?.files.length) && !regulationContext) {
@@ -1524,7 +1536,7 @@ export default function App() {
         {sidebarOpen && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="md:hidden fixed inset-0 z-20 bg-black/40"
+            className="md:hidden fixed inset-0 z-20 bg-black/40 no-print"
             onClick={() => setSidebarOpen(false)}
             aria-hidden="true"
           />
@@ -1536,7 +1548,7 @@ export default function App() {
           <motion.aside
             initial={{ x: -280, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -280, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-            className={`w-72 shrink-0 flex flex-col border-r ${sidebar_bg} ${border_c} z-30 fixed md:relative h-full`}
+            className={`w-72 shrink-0 flex flex-col border-r ${sidebar_bg} ${border_c} z-30 fixed md:relative h-full no-print`}
             aria-label="사이드바"
           >
             {/* 헤더 */}
